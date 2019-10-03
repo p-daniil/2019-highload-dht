@@ -53,6 +53,6 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Port out of range");
         }
 
-        throw new IllegalStateException();
+        return new SimpleHttpServer(port, dao);
     }
 }
