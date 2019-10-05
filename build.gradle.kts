@@ -41,10 +41,6 @@ tasks {
         maxHeapSize = "128m"
         useJUnitPlatform()
     }
-
-    wrapper {
-        distributionType = Wrapper.DistributionType.ALL
-    }
 }
 
 application {
