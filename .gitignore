@@ -6,6 +6,7 @@
 !*.java
 !README.md
 !LICENSE
+!gradle/wrapper/*
 !gradlew.bat
 !gradlew
 !build.gradle.kts
