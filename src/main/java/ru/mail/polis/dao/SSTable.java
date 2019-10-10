@@ -73,11 +73,11 @@ public abstract class SSTable implements Table {
      * @return list of SSTable abstractions
      * @throws IOException if unable to read directory
      */
-    protected static List<SSTable> findVersions(
+    protected static List<Table> findVersions(
             final Path tablesDir,
             final Implementation impl) throws IOException {
         
-        final List<SSTable> ssTables = new CopyOnWriteArrayList<>();
+        final List<Table> ssTables = new CopyOnWriteArrayList<>();
         Files.walkFileTree(tablesDir, EnumSet.noneOf(FileVisitOption.class), 1, new SimpleFileVisitor<>() {
             
             @Override

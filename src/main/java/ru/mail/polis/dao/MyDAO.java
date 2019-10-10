@@ -29,7 +29,7 @@ public class MyDAO implements DAO {
     private final Path tablesDir;
 
     private final MemoryTablePool memTable;
-    private final List<SSTable> ssTableList;
+    private List<Table> ssTableList;
     private final FlusherThread flusher;
 
     private class FlusherThread extends Thread {
@@ -93,7 +93,7 @@ public class MyDAO implements DAO {
 
         final List<Iterator<Cell>> ssIterators = new ArrayList<>();
 
-        for (final SSTable ssTable : ssTableList) {
+        for (final Table ssTable : ssTableList) {
             ssIterators.add(ssTable.iterator(from));
         }
 
@@ -135,24 +135,24 @@ public class MyDAO implements DAO {
 
     @Override
     public void compact() throws IOException {
-//
-//        final Path actualFile = SSTable.writeTable(
-//                tablesDir,
-//                cellIterator(MIN_BYTE_BUFFER, false),
-//                memTable.getVersion());
-//
-//        closeSSTables();
-//        SSTable.removeOldVersionsAndResetCounter(tablesDir, actualFile);
-//        ssTableList = SSTable.findVersions(tablesDir, SSTABLE_IMPL);
-//
-//        assert ssTableList.size() == SSTable.MIN_TABLE_VERSION;
-//        versionCounter = SSTable.MIN_TABLE_VERSION;
-//
-//        memTable.setVersion(++versionCounter);
+
+        final Path actualFile = SSTable.writeTable(
+                tablesDir,
+                cellIterator(MIN_BYTE_BUFFER, false),
+                memTable.getVersion());
+
+        closeSSTables();
+        SSTable.removeOldVersionsAndResetCounter(tablesDir, actualFile);
+        ssTableList = SSTable.findVersions(tablesDir, SSTABLE_IMPL);
+
+        assert ssTableList.size() == SSTable.MIN_TABLE_VERSION;
+        int versionCounter = SSTable.MIN_TABLE_VERSION;
+
+        memTable.setVersion(++versionCounter);
     }
 
     private void closeSSTables() throws IOException {
-        for (final SSTable t : ssTableList) {
+        for (final Table t : ssTableList) {
             if (t instanceof Closeable) {
                 ((Closeable) t).close();
             }
