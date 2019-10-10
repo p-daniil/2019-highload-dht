@@ -15,13 +15,16 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static ru.mail.polis.dao.SSTable.Implementation.*;
+import static ru.mail.polis.dao.SSTable.Implementation.FILE_CHANNEL_READ;
 
 public class MyDAO implements DAO {
 
     private static final Logger LOG = LoggerFactory.getLogger(MyDAO.class);
 
+    private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private static final SSTable.Implementation SSTABLE_IMPL = FILE_CHANNEL_READ;
     private static final ByteBuffer MIN_BYTE_BUFFER = ByteBuffer.allocate(0);
     private static final double LOAD_FACTOR = 0.016;
@@ -46,8 +49,13 @@ public class MyDAO implements DAO {
                 try {
                     tableToFlush = memTable.takeToFlush();
                     poisonReceived = tableToFlush.isPoisonPill();
-                    flush(tableToFlush.getTable());
-                    memTable.flushed(tableToFlush);
+                    lock.writeLock().lock();
+                    try {
+                        flush(tableToFlush.getTable());
+                        memTable.flushed(tableToFlush);
+                    } finally {
+                        lock.writeLock().unlock();
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } catch (IOException e) {
@@ -93,12 +101,17 @@ public class MyDAO implements DAO {
 
         final List<Iterator<Cell>> ssIterators = new ArrayList<>();
 
-        for (final Table ssTable : ssTableList) {
-            ssIterators.add(ssTable.iterator(from));
-        }
+        lock.readLock().lock();
+        try {
+            for (final Table ssTable : ssTableList) {
+                ssIterators.add(ssTable.iterator(from));
+            }
 
-        if (includeMemTable) {
-            ssIterators.add(memTable.iterator(from));
+            if (includeMemTable) {
+                ssIterators.add(memTable.iterator(from));
+            }
+        } finally {
+            lock.readLock().unlock();
         }
 
         final UnmodifiableIterator<Cell> mergeSortedIter =

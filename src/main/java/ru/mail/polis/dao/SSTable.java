@@ -77,7 +77,7 @@ public abstract class SSTable implements Table {
             final Path tablesDir,
             final Implementation impl) throws IOException {
         
-        final List<Table> ssTables = new CopyOnWriteArrayList<>();
+        final List<Table> ssTables = new ArrayList<>();
         Files.walkFileTree(tablesDir, EnumSet.noneOf(FileVisitOption.class), 1, new SimpleFileVisitor<>() {
             
             @Override

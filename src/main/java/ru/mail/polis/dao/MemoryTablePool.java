@@ -94,6 +94,7 @@ public class MemoryTablePool implements Table, Closeable {
             try {
                 if (current.getSize() > memFlushThreshold) {
                     tableToFlush = new TableToFlush(current);
+                    pendingFlush.put(tableToFlush.getVersion(), tableToFlush.getTable());
                     current = new MemTable(current.getVersion() + 1);
                 }
             } finally {
@@ -143,6 +144,7 @@ public class MemoryTablePool implements Table, Closeable {
         TableToFlush tableToFlush;
         try {
             tableToFlush = new TableToFlush(current, true);
+            pendingFlush.put(tableToFlush.getVersion(), tableToFlush.getTable());
         } finally {
             lock.writeLock().unlock();
         }
