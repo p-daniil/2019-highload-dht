@@ -20,15 +20,13 @@ public class MemoryTablePool implements Table, Closeable {
     private volatile MemTable current;
     private final NavigableMap<Long, Table> pendingFlush;
     private final BlockingQueue<TableToFlush> flushQueue;
-    private int version;
 
     private final long memFlushThreshold;
 
     private final AtomicBoolean stop = new AtomicBoolean();
 
-    public MemoryTablePool(final long memFlushThreshold, final int version) {
+    public MemoryTablePool(final long memFlushThreshold, final long version) {
         this.memFlushThreshold = memFlushThreshold;
-        this.version = version;
         this.current = new MemTable(version);
         this.pendingFlush = new TreeMap<>();
         this.flushQueue = new ArrayBlockingQueue<>(2);
@@ -96,7 +94,7 @@ public class MemoryTablePool implements Table, Closeable {
             try {
                 if (current.getSize() > memFlushThreshold) {
                     tableToFlush = new TableToFlush(current);
-                    current = new MemTable(version++);
+                    current = new MemTable(current.getVersion() + 1);
                 }
             } finally {
                 lock.writeLock().unlock();
@@ -132,8 +130,8 @@ public class MemoryTablePool implements Table, Closeable {
         return current.getVersion();
     }
 
-    public void setVersion(int version) {
-        this.version = version;
+    public void setVersion(long version) {
+        current.setVersion(version);
     }
 
     @Override
