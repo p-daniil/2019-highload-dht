@@ -3,8 +3,11 @@ package ru.mail.polis.dao;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.UnmodifiableIterator;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
@@ -13,35 +16,65 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
+import static ru.mail.polis.dao.SSTable.Implementation.*;
+
 public class MyDAO implements DAO {
 
-    private static final SSTable.Implementation SSTABLE_IMPL = SSTable.Implementation.FILE_CHANNEL_READ;
+    private static final Logger LOG = LoggerFactory.getLogger(MyDAO.class);
+
+    private static final SSTable.Implementation SSTABLE_IMPL = FILE_CHANNEL_READ;
     private static final ByteBuffer MIN_BYTE_BUFFER = ByteBuffer.allocate(0);
     private static final double LOAD_FACTOR = 0.016;
 
-    private final long allowableMemTableSize;
-
     private final Path tablesDir;
-    
-    private int versionCounter;
 
-    private MemTable memTable;
-    private List<SSTable> ssTableList;
+    private final MemoryTablePool memTable;
+    private final List<SSTable> ssTableList;
+    private final FlusherThread flusher;
 
-    /** 
+    private class FlusherThread extends Thread {
+
+        public FlusherThread() {
+            super("Flusher");
+        }
+
+        @Override
+        public void run() {
+            boolean poisonReceived = false;
+            while (!poisonReceived && !isInterrupted()) {
+                TableToFlush tableToFlush = null;
+                try {
+                    tableToFlush = memTable.takeToFlush();
+                    poisonReceived = tableToFlush.isPoisonPill();
+                    flush(tableToFlush.getTable());
+                    memTable.flushed(tableToFlush);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (IOException e) {
+                    LOG.error("Error while flushing version: " + tableToFlush.getVersion(), e);
+                }
+            }
+            if (poisonReceived) {
+                LOG.info("Poison pill received. Stop flushing.");
+            }
+        }
+    }
+
+    /**
      * DAO Implementation for LSM Database.
      *
      * @param tablesDir directory to store SSTable files
-     * @param maxHeap max memory, allocated for JVM
+     * @param maxHeap   max memory, allocated for JVM
      * @throws IOException if unable to read existing SSTable files
      */
     public MyDAO(final Path tablesDir, final long maxHeap) throws IOException {
-        
-        ssTableList = SSTable.findVersions(tablesDir, SSTABLE_IMPL);
-        versionCounter = ssTableList.size();
-        memTable = new MemTable(++versionCounter);
-        
-        this.allowableMemTableSize = (long) (maxHeap * LOAD_FACTOR);
+
+        this.ssTableList = SSTable.findVersions(tablesDir, SSTABLE_IMPL);
+        int version = ssTableList.size();
+        this.memTable = new MemoryTablePool((long) (maxHeap * LOAD_FACTOR), version++);
+        this.flusher = new FlusherThread();
+        this.flusher.start();
+
         this.tablesDir = tablesDir;
     }
 
@@ -79,62 +112,62 @@ public class MyDAO implements DAO {
     @Override
     public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) throws IOException {
         memTable.upsert(key.duplicate(), value.duplicate());
-        if (memTable.getSize() > allowableMemTableSize) {
-            flush();
-        }
     }
 
     @Override
     public void remove(@NotNull final ByteBuffer key) throws IOException {
         memTable.remove(key.duplicate());
-        if (memTable.getSize() > allowableMemTableSize) {
-            flush();
-        }
     }
 
-    private void flush() throws IOException {
-        DebugUtils.flushInfo(memTable);
-
-        ssTableList.add(SSTable.flush(
-                tablesDir, 
-                memTable.iterator(MIN_BYTE_BUFFER),
-                memTable.getVersion(),
-                SSTABLE_IMPL));
-
-        memTable = new MemTable(++versionCounter);
+    private void flush(final Table table) throws IOException {
+        LOG.info("Flushing...\n\tCurrent table size: {} bytes\n\tHeap free: {} bytes",
+                table.getSize(),
+                Runtime.getRuntime().freeMemory());
+        final long startTime = System.currentTimeMillis();
+        final SSTable flushedTable = SSTable.flush(
+                tablesDir,
+                table.iterator(MIN_BYTE_BUFFER),
+                table.getVersion(),
+                SSTABLE_IMPL);
+        LOG.info("Flushed in {} ms", System.currentTimeMillis() - startTime);
+        ssTableList.add(flushedTable);
     }
 
     @Override
     public void compact() throws IOException {
-
-        final Path actualFile = SSTable.writeTable(
-                tablesDir,
-                cellIterator(MIN_BYTE_BUFFER, false),
-                memTable.getVersion());
-
-        closeSSTables();
-        SSTable.removeOldVersionsAndResetCounter(tablesDir, actualFile);
-        ssTableList = SSTable.findVersions(tablesDir, SSTABLE_IMPL);
-
-        assert ssTableList.size() == SSTable.MIN_TABLE_VERSION;
-        versionCounter = SSTable.MIN_TABLE_VERSION;
-
-        memTable.setVersion(++versionCounter);
+//
+//        final Path actualFile = SSTable.writeTable(
+//                tablesDir,
+//                cellIterator(MIN_BYTE_BUFFER, false),
+//                memTable.getVersion());
+//
+//        closeSSTables();
+//        SSTable.removeOldVersionsAndResetCounter(tablesDir, actualFile);
+//        ssTableList = SSTable.findVersions(tablesDir, SSTABLE_IMPL);
+//
+//        assert ssTableList.size() == SSTable.MIN_TABLE_VERSION;
+//        versionCounter = SSTable.MIN_TABLE_VERSION;
+//
+//        memTable.setVersion(++versionCounter);
     }
 
     private void closeSSTables() throws IOException {
         for (final SSTable t : ssTableList) {
-            if (t instanceof SSTableFileChannel) {
-                ((SSTableFileChannel) t).close();
+            if (t instanceof Closeable) {
+                ((Closeable) t).close();
             }
         }
     }
 
     @Override
     public void close() throws IOException {
-        if (memTable.getSize() != 0) {
-            flush();
+        memTable.close();
+        try {
+            flusher.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            closeSSTables();
         }
-        closeSSTables();
     }
 }

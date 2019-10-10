@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -76,7 +77,7 @@ public abstract class SSTable implements Table {
             final Path tablesDir,
             final Implementation impl) throws IOException {
         
-        final List<SSTable> ssTables = new ArrayList<>();
+        final List<SSTable> ssTables = new CopyOnWriteArrayList<>();
         Files.walkFileTree(tablesDir, EnumSet.noneOf(FileVisitOption.class), 1, new SimpleFileVisitor<>() {
             
             @Override
@@ -270,7 +271,7 @@ public abstract class SSTable implements Table {
             final Iterator<Cell> cellIterator, 
             final long version,
             final Implementation impl) throws IOException {
-        
+
         if (impl == Implementation.FILE_CHANNEL_READ) {
             return new SSTableFileChannel(writeTable(tablesDir, cellIterator, version));
         } else {

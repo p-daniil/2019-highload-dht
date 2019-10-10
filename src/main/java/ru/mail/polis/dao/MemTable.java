@@ -3,16 +3,20 @@ package ru.mail.polis.dao;
 import com.google.common.collect.Iterators;
 import org.jetbrains.annotations.NotNull;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicLong;
 
-public class MemTable implements Table {
+@ThreadSafe
+public final class MemTable implements Table {
 
-    private final NavigableMap<ByteBuffer, Value> db = new TreeMap<>();
-    private long size;
+    private final NavigableMap<ByteBuffer, Value> db = new ConcurrentSkipListMap<>();
+    private AtomicLong size = new AtomicLong();
     private long version;
 
     /**
@@ -37,13 +41,13 @@ public class MemTable implements Table {
         final Value prev = db.put(key, Value.of(value));
         if (prev == null) {
             // Added new key and value. Calc space for them.
-            size += key.limit() + value.limit();
+            size.addAndGet(key.limit() + value.limit());
         } else if (prev.isRemoved()) {
             // Has only key before. Calc space for value.
-            size += value.limit();
+            size.addAndGet(value.limit());
         } else {
             // Has key and value before. Calc prev and new value size difference.
-            size += value.limit() - prev.getData().limit();
+            size.addAndGet(value.limit() - prev.getData().limit());
         }
     }
 
@@ -52,16 +56,16 @@ public class MemTable implements Table {
         final Value prev = db.put(key, Value.tombstone());
         if (prev == null) {
             // Calc key size.
-            size += key.limit();
+            size.addAndGet(key.limit());
         } else if (!prev.isRemoved()) {
             // Substract prev value size.
-            size -= prev.getData().limit();
+            size.addAndGet(-prev.getData().limit());
         }
     }
 
     @Override
     public long getSize() {
-        return size;
+        return size.get();
     }
 
     @Override

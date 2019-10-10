@@ -2,6 +2,7 @@ package ru.mail.polis.dao;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -9,7 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Iterator;
 
-public class SSTableFileChannel extends SSTable {
+public class SSTableFileChannel extends SSTable implements Closeable {
 
     private final FileChannel channel;
     private final int rowCount;
@@ -150,7 +151,8 @@ public class SSTableFileChannel extends SSTable {
         }
     }
 
-    protected void close() throws IOException {
+    @Override
+    public void close() throws IOException {
         channel.close();
     }
 }
