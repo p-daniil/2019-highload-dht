@@ -77,7 +77,7 @@ public abstract class SSTable implements Table {
             final Path tablesDir,
             final Implementation impl) throws IOException {
         
-        final List<Table> ssTables = new ArrayList<>();
+        final List<Table> ssTables = new CopyOnWriteArrayList<>();
         Files.walkFileTree(tablesDir, EnumSet.noneOf(FileVisitOption.class), 1, new SimpleFileVisitor<>() {
             
             @Override
@@ -208,7 +208,7 @@ public abstract class SSTable implements Table {
 
                 final long keySize = cell.getKey().limit();
                 channel.write(ByteBuffer.allocate(Long.BYTES).putLong(keySize).flip());
-                channel.write(ByteBuffer.allocate((int) keySize).put(cell.getKey()).flip());
+                channel.write(ByteBuffer.allocate((int) keySize).put(cell.getKey().duplicate()).flip());
 
                 final long timeStamp = cell.getValue().getTimeStamp();
                 channel.write(ByteBuffer.allocate(Long.BYTES).putLong(timeStamp).flip());
@@ -217,7 +217,7 @@ public abstract class SSTable implements Table {
                 channel.write(ByteBuffer.allocate(Byte.BYTES).put((byte) (tombstone ? 1 : 0)).flip());
 
                 if (!tombstone) {
-                    final ByteBuffer value = cell.getValue().getData();
+                    final ByteBuffer value = cell.getValue().getData().duplicate();
                     final long valueSize = value.limit();
                     channel.write(ByteBuffer.allocate(Long.BYTES).putLong(valueSize).flip());
                     channel.write(ByteBuffer.allocate((int) valueSize).put(value).flip());

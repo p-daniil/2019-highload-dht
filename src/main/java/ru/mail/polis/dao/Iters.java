@@ -16,10 +16,14 @@
 
 package ru.mail.polis.dao;
 
+import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
 
+import com.google.common.collect.Iterators;
+import com.google.common.collect.UnmodifiableIterator;
 import org.jetbrains.annotations.NotNull;
 
 import com.google.common.base.Functions;
@@ -139,5 +143,14 @@ public final class Iters {
 
             return result;
         }
+    }
+
+    public static Iterator<Cell> cellIterator(final List<Iterator<Cell>> cellIterators) {
+        final UnmodifiableIterator<Cell> mergeSortedIter =
+                Iterators.mergeSorted(cellIterators, Comparator.naturalOrder());
+
+        final Iterator<Cell> collapsedIter = Iters.collapseEquals(mergeSortedIter, Cell::getKey);
+
+        return Iterators.filter(collapsedIter, cell -> !cell.getValue().isRemoved());
     }
 }

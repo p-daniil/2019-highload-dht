@@ -1,7 +1,5 @@
 package ru.mail.polis.dao;
 
-import com.google.common.collect.Iterators;
-import com.google.common.collect.UnmodifiableIterator;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.Closeable;
@@ -40,19 +38,13 @@ public class MemoryTablePool implements Table, Closeable {
         try {
             iterators.add(current.iterator(from));
 
-            for (final Table table : pendingFlush.descendingMap().values()) {
+            for (final Table table : pendingFlush.values()) {
                 iterators.add(table.iterator(from));
             }
         } finally {
             lock.readLock().unlock();
         }
-
-        final UnmodifiableIterator<Cell> mergeSortedIter =
-                Iterators.mergeSorted(iterators, Comparator.naturalOrder());
-
-        final Iterator<Cell> collapsedIter = Iters.collapseEquals(mergeSortedIter, Cell::getKey);
-
-        return Iterators.filter(collapsedIter, cell -> !cell.getValue().isRemoved());
+        return Iters.cellIterator(iterators);
     }
 
     @Override
@@ -77,7 +69,7 @@ public class MemoryTablePool implements Table, Closeable {
         return flushQueue.take();
     }
 
-    void flushed(final TableToFlush table) {
+    void flushed(final Table table) {
         lock.writeLock().lock();
         try {
             pendingFlush.remove(table.getVersion());
@@ -94,7 +86,7 @@ public class MemoryTablePool implements Table, Closeable {
             try {
                 if (current.getSize() > memFlushThreshold) {
                     tableToFlush = new TableToFlush(current);
-                    pendingFlush.put(tableToFlush.getVersion(), tableToFlush.getTable());
+                    pendingFlush.put(current.getVersion(), current);
                     current = new MemTable(current.getVersion() + 1);
                 }
             } finally {

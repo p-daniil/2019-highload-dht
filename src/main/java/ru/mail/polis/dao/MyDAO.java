@@ -1,7 +1,6 @@
 package ru.mail.polis.dao;
 
 import com.google.common.collect.Iterators;
-import com.google.common.collect.UnmodifiableIterator;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,7 +11,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -27,7 +25,7 @@ public class MyDAO implements DAO {
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private static final SSTable.Implementation SSTABLE_IMPL = FILE_CHANNEL_READ;
     private static final ByteBuffer MIN_BYTE_BUFFER = ByteBuffer.allocate(0);
-    private static final double LOAD_FACTOR = 0.016;
+    private static final double LOAD_FACTOR = 0.01;
 
     private final Path tablesDir;
 
@@ -49,13 +47,7 @@ public class MyDAO implements DAO {
                 try {
                     tableToFlush = memTable.takeToFlush();
                     poisonReceived = tableToFlush.isPoisonPill();
-                    lock.writeLock().lock();
-                    try {
-                        flush(tableToFlush.getTable());
-                        memTable.flushed(tableToFlush);
-                    } finally {
-                        lock.writeLock().unlock();
-                    }
+                    flush(tableToFlush.getTable());
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } catch (IOException e) {
@@ -113,13 +105,7 @@ public class MyDAO implements DAO {
         } finally {
             lock.readLock().unlock();
         }
-
-        final UnmodifiableIterator<Cell> mergeSortedIter =
-                Iterators.mergeSorted(ssIterators, Comparator.naturalOrder());
-
-        final Iterator<Cell> collapsedIter = Iters.collapseEquals(mergeSortedIter, Cell::getKey);
-
-        return Iterators.filter(collapsedIter, cell -> !cell.getValue().isRemoved());
+        return Iters.cellIterator(ssIterators);
     }
 
     @Override
@@ -137,13 +123,17 @@ public class MyDAO implements DAO {
                 table.getSize(),
                 Runtime.getRuntime().freeMemory());
         final long startTime = System.currentTimeMillis();
-        final SSTable flushedTable = SSTable.flush(
+
+        final Table flushedTable = SSTable.flush(
                 tablesDir,
                 table.iterator(MIN_BYTE_BUFFER),
                 table.getVersion(),
                 SSTABLE_IMPL);
+
         LOG.info("Flushed in {} ms", System.currentTimeMillis() - startTime);
+
         ssTableList.add(flushedTable);
+        memTable.flushed(flushedTable);
     }
 
     @Override
