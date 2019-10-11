@@ -16,22 +16,22 @@ import java.util.List;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static ru.mail.polis.dao.SSTable.Implementation.MMAPPED;
+import static ru.mail.polis.dao.SSTable.Impl.FILE_CHANNEL_READ;
 
 public class MyDAO implements DAO {
 
     private static final Logger LOG = LoggerFactory.getLogger(MyDAO.class);
 
-    private final ReadWriteLock lock = new ReentrantReadWriteLock();
-    private static final SSTable.Implementation SSTABLE_IMPL = MMAPPED;
+    private static final SSTable.Impl SSTABLE_IMPL = FILE_CHANNEL_READ;
     private static final ByteBuffer MIN_BYTE_BUFFER = ByteBuffer.allocate(0);
-    private static final double LOAD_FACTOR = 0.01;
+    private static final double LOAD_FACTOR = 0.1;
 
     private final Path tablesDir;
 
+    private final ReadWriteLock lock = new ReentrantReadWriteLock();
+    private final FlusherThread flusher;
     private final MemoryTablePool memTable;
     private List<Table> ssTableList;
-    private final FlusherThread flusher;
 
     private class FlusherThread extends Thread {
 

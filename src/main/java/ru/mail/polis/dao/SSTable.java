@@ -15,6 +15,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static ru.mail.polis.dao.SSTable.Impl.FILE_CHANNEL_READ;
+
 public abstract class SSTable implements Table {
 
     protected static final int MIN_TABLE_VERSION = 1;
@@ -27,7 +29,7 @@ public abstract class SSTable implements Table {
     protected final long size;
     protected final long version;
 
-    enum Implementation {
+    enum Impl {
         FILE_CHANNEL_READ,
         MMAPPED
     }
@@ -75,7 +77,7 @@ public abstract class SSTable implements Table {
      */
     protected static List<Table> findVersions(
             final Path tablesDir,
-            final Implementation impl) throws IOException {
+            final Impl impl) throws IOException {
         
         final List<Table> ssTables = new CopyOnWriteArrayList<>();
         Files.walkFileTree(tablesDir, EnumSet.noneOf(FileVisitOption.class), 1, new SimpleFileVisitor<>() {
@@ -87,7 +89,7 @@ public abstract class SSTable implements Table {
                 
                 if (checkFileName(file.getFileName().toString())) {
                     
-                    if (impl == Implementation.FILE_CHANNEL_READ) {
+                    if (impl == FILE_CHANNEL_READ) {
                         ssTables.add(new SSTableFileChannel(file));
                     } else {
                         ssTables.add(new SSTableMmap(file));
@@ -270,9 +272,9 @@ public abstract class SSTable implements Table {
             final Path tablesDir, 
             final Iterator<Cell> cellIterator, 
             final long version,
-            final Implementation impl) throws IOException {
+            final Impl impl) throws IOException {
 
-        if (impl == Implementation.FILE_CHANNEL_READ) {
+        if (impl == FILE_CHANNEL_READ) {
             return new SSTableFileChannel(writeTable(tablesDir, cellIterator, version));
         } else {
             return new SSTableMmap(writeTable(tablesDir, cellIterator, version));

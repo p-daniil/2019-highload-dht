@@ -15,13 +15,12 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class MemoryTablePool implements Table, Closeable {
 
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
-    private volatile MemTable current;
     private final NavigableMap<Long, Table> pendingFlush;
     private final BlockingQueue<TableToFlush> flushQueue;
-
     private final long memFlushThreshold;
-
     private final AtomicBoolean stop = new AtomicBoolean();
+
+    private volatile MemTable current;
 
     public MemoryTablePool(final long memFlushThreshold, final long version) {
         this.memFlushThreshold = memFlushThreshold;
