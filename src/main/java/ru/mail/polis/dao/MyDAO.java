@@ -84,7 +84,6 @@ public class MyDAO implements DAO {
                     while (!compactingNow.get()) {
                         needCompaction.await();
                     }
-
                     compact();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -233,6 +232,7 @@ public class MyDAO implements DAO {
         memTable.close();
         try {
             flusher.join();
+            compactionThread.interrupt();
             compactionThread.join();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
