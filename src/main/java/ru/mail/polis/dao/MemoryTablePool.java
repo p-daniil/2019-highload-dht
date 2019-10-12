@@ -28,6 +28,7 @@ public class MemoryTablePool implements Table, Closeable {
 
     /**
      * Implementation of memory table pool
+     *
      * @param memFlushThreshold threshold after which occurs flushing in-memory table to disk
      * @param version version of current table
      */

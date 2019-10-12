@@ -145,6 +145,12 @@ public final class Iters {
         }
     }
 
+    /**
+     * Merges iterators, collapses equals cells and removes cells, marked as removed
+     *
+     * @param cellIterators list of iterators to processing on them
+     * @return single iterator, without equals and removed cells
+     */
     public static Iterator<Cell> cellIterator(final List<Iterator<Cell>> cellIterators) {
         final UnmodifiableIterator<Cell> mergeSortedIter =
                 Iterators.mergeSorted(cellIterators, Comparator.naturalOrder());

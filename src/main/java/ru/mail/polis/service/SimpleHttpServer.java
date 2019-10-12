@@ -25,12 +25,23 @@ public class SimpleHttpServer extends HttpServer implements Service {
         this.dao = dao;
     }
 
+    /**
+     * Method for handling "/v0/status" requests
+     * @param request received request
+     * @return response to client
+     */
     @Path("/v0/status")
     @RequestMethod(Request.METHOD_GET)
     public Response status(final Request request) {
         return new Response(Response.OK, Response.EMPTY);
     }
 
+    /**
+     * Method for handling "/v0/entity" requests
+     * @param id id of entity, passed in url
+     * @param request received request
+     * @return response to client
+     */
     @Path("/v0/entity")
     public Response entity(@Param("id") final String id, final Request request) {
 

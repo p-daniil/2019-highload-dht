@@ -109,6 +109,13 @@ public abstract class SSTable implements Table {
         return ssTables;
     }
 
+    /**
+     * Resets version of table, stored in file name to {@code MIN_TABLE_VERSION}
+     *
+     * @param tableFile file to reset version
+     * @return path to file after reset
+     * @throws IOException if unable to read file
+     */
     public static Path resetTableVersion(final Path tableFile) throws IOException {
         return Files.move(tableFile, tableFile.resolveSibling(
                 createName(MIN_TABLE_VERSION)),
@@ -251,6 +258,7 @@ public abstract class SSTable implements Table {
 
     /**
      *  Creates SSTable from file
+     *
      * @param tablePath path to file
      * @param impl type of implementation of SSTable abstraction
      * @return SSTable abstraction

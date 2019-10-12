@@ -71,7 +71,7 @@ public interface DAO extends Closeable {
      * @throws NoSuchElementLite if no such record
      */
     @NotNull
-    default ByteBuffer get(@NotNull ByteBuffer key) throws IOException, NoSuchElementException {
+    default ByteBuffer get(@NotNull ByteBuffer key) throws IOException, NoSuchElementLite {
         final Iterator<Record> iter = iterator(key);
         if (!iter.hasNext()) {
             throw new NoSuchElementLite("Not found");
