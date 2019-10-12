@@ -30,12 +30,12 @@ $ gradle run
 
 **ВНИМАНИЕ!** При запуске тестов или сервера в IDE необходимо передавать Java опцию `-Xmx128m`. 
 
-В своём Java package `ru.mail.polis.service.<username>` реализуйте интерфейс [`Service`](src/main/java/ru/mail/polis/dao/Service.java) и поддержите следующий HTTP REST API протокол:
+В своём Java package `ru.mail.polis.service.<username>` реализуйте интерфейс [`Service`](src/main/java/ru/mail/polis/service/Service.java) и поддержите следующий HTTP REST API протокол:
 * HTTP `GET /v0/entity?id=<ID>` -- получить данные по ключу `<ID>`. Возвращает `200 OK` и данные или `404 Not Found`.
 * HTTP `PUT /v0/entity?id=<ID>` -- создать/перезаписать (upsert) данные по ключу `<ID>`. Возвращает `201 Created`.
 * HTTP `DELETE /v0/entity?id=<ID>` -- удалить данные по ключу `<ID>`. Возвращает `202 Accepted`.
 
-Возвращайте реализацию интерфейса в [`ServiceFactory`](src/main/java/ru/mail/polis/dao/ServiceFactory.java).
+Возвращайте реализацию интерфейса в [`ServiceFactory`](src/main/java/ru/mail/polis/service/ServiceFactory.java).
 
 Реализацию `DAO` берём из весеннего курса `2019-db-lsm`, либо запиливаем [adapter](https://en.wikipedia.org/wiki/Adapter_pattern) к уже готовой реализации LSM с биндингами на Java (например, RocksDB, LevelDB или любой другой).
 
