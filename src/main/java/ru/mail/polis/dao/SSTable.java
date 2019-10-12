@@ -19,7 +19,7 @@ import static ru.mail.polis.dao.SSTable.Impl.FILE_CHANNEL_READ;
 
 public abstract class SSTable implements Table {
 
-    protected static final int MIN_TABLE_VERSION = 1;
+    protected static final int MIN_TABLE_VERSION = 0;
     protected static final String TABLE_FILE_SUFFIX = ".dat";
     protected static final String TABLE_TMP_FILE_SUFFIX = ".tmp";
     protected static final String TABLE_FILE_PREFIX = "table_";
@@ -75,11 +75,11 @@ public abstract class SSTable implements Table {
      * @return list of SSTable abstractions
      * @throws IOException if unable to read directory
      */
-    protected static List<Table> findVersions(
+    protected static List<SSTable> findVersions(
             final Path tablesDir,
             final Impl impl) throws IOException {
         
-        final List<Table> ssTables = new CopyOnWriteArrayList<>();
+        final List<SSTable> ssTables = new CopyOnWriteArrayList<>();
         Files.walkFileTree(tablesDir, EnumSet.noneOf(FileVisitOption.class), 1, new SimpleFileVisitor<>() {
             
             @Override
@@ -140,8 +140,12 @@ public abstract class SSTable implements Table {
         });
     }
 
-    private static void changeTableVersion(final Path tableFile, final long newVersion) throws IOException {
-        Files.move(tableFile, tableFile.resolveSibling(createName(newVersion)), StandardCopyOption.ATOMIC_MOVE);
+    public static Path resetTableVersion(final Path tableFile) throws IOException {
+        return changeTableVersion(tableFile, MIN_TABLE_VERSION);
+    }
+
+    private static Path changeTableVersion(final Path tableFile, final long newVersion) throws IOException {
+        return Files.move(tableFile, tableFile.resolveSibling(createName(newVersion)), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
     }
 
     private static String createName(final long version) {
@@ -273,12 +277,19 @@ public abstract class SSTable implements Table {
             final Iterator<Cell> cellIterator, 
             final long version,
             final Impl impl) throws IOException {
+        final Path tablePath = writeTable(tablesDir, cellIterator, version);
+        return createSSTable(tablePath, impl);
+    }
 
+    public static SSTable createSSTable(final Path tablePath, final Impl impl) throws IOException {
         if (impl == FILE_CHANNEL_READ) {
-            return new SSTableFileChannel(writeTable(tablesDir, cellIterator, version));
+            return new SSTableFileChannel(tablePath);
         } else {
-            return new SSTableMmap(writeTable(tablesDir, cellIterator, version));
+            return new SSTableMmap(tablePath);
         }
     }
 
+    public Path getFile() {
+        return file;
+    }
 }

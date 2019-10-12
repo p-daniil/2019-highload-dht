@@ -9,11 +9,16 @@ import ru.mail.polis.Record;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static ru.mail.polis.dao.SSTable.Impl.FILE_CHANNEL_READ;
@@ -30,9 +35,13 @@ public class MyDAO implements DAO {
     private final Path tablesDir;
 
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
+    private final ReentrantLock compactionLock = new ReentrantLock();
+    private final Condition needCompaction = compactionLock.newCondition();
     private final FlusherThread flusher;
+    private final CompactionThread compactionThread;
     private final MemoryTablePool memTable;
-    private List<Table> ssTableList;
+    private volatile List<SSTable> ssTableList;
+    private final AtomicBoolean compactingNow = new AtomicBoolean(false);
 
     private class FlusherThread extends Thread {
 
@@ -61,6 +70,33 @@ public class MyDAO implements DAO {
         }
     }
 
+    private class CompactionThread extends Thread {
+
+        public CompactionThread() {
+            super("Compaction");
+        }
+
+        @Override
+        public void run() {
+            while (!isInterrupted()) {
+                try {
+                    compactionLock.lock();
+                    while (!compactingNow.get()) {
+                        needCompaction.await();
+                    }
+
+                    compact();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (IOException e) {
+                    LOG.error("Error while compacting", e);
+                } finally {
+                    compactionLock.unlock();
+                }
+            }
+        }
+    }
+
     /**
      * DAO Implementation for LSM Database.
      *
@@ -73,8 +109,12 @@ public class MyDAO implements DAO {
         this.ssTableList = SSTable.findVersions(tablesDir, SSTABLE_IMPL);
         int version = ssTableList.size();
         this.memTable = new MemoryTablePool((long) (maxHeap * LOAD_FACTOR), version++);
+
         this.flusher = new FlusherThread();
         this.flusher.start();
+
+        this.compactionThread = new CompactionThread();
+        this.compactionThread.start();
 
         this.tablesDir = tablesDir;
     }
@@ -125,7 +165,7 @@ public class MyDAO implements DAO {
                 Runtime.getRuntime().freeMemory());
         final long startTime = System.currentTimeMillis();
 
-        final Table flushedTable = SSTable.flush(
+        final SSTable flushedTable = SSTable.flush(
                 tablesDir,
                 table.iterator(MIN_BYTE_BUFFER),
                 table.getVersion(),
@@ -137,40 +177,46 @@ public class MyDAO implements DAO {
         memTable.flushed(flushedTable);
 
         if (ssTableList.size() > COMPACTION_THRESHOLD) {
-            compact();
+            needCompaction.signalAll();
         }
     }
 
     @Override
     public void compact() throws IOException {
-        lock.readLock().lock();
+        compactingNow.compareAndSet(false, true);
         LOG.info("Compaction started...");
         final long startTime = System.currentTimeMillis();
-        final Path actualFile;
-        try {
-            actualFile = SSTable.writeTable(
-                    tablesDir,
-                    cellIterator(MIN_BYTE_BUFFER, false),
-                    memTable.getVersion());
-        } finally {
-            lock.readLock().unlock();
-        }
-        lock.writeLock().lock();
-        try {
-            closeSSTables();
-            SSTable.removeOldVersionsAndResetCounter(tablesDir, actualFile);
-            ssTableList = SSTable.findVersions(tablesDir, SSTABLE_IMPL);
 
-            assert ssTableList.size() == SSTable.MIN_TABLE_VERSION;
-            memTable.setVersion(SSTable.MIN_TABLE_VERSION + 1);
-            LOG.info("Compaction finished in {} ms", System.currentTimeMillis() - startTime);
+        final List<SSTable> tablesToCompact = new ArrayList<>(ssTableList);
+        final Path compactedFile = SSTable.writeTable(
+                tablesDir,
+                cellIterator(MIN_BYTE_BUFFER, false),
+                -1);
+
+        lock.writeLock().lock();
+        final Path compactedFileReseted;
+        try {
+            ssTableList.removeAll(tablesToCompact);
+            compactedFileReseted = SSTable.resetTableVersion(compactedFile);
+            ssTableList.add(SSTable.createSSTable(compactedFileReseted, SSTABLE_IMPL));
         } finally {
             lock.writeLock().unlock();
         }
 
+        for (SSTable t : tablesToCompact) {
+            final Path file = t.getFile();
+            if (!file.equals(compactedFileReseted)) {
+                if (t instanceof Closeable) {
+                    ((Closeable) t).close();
+                }
+                Files.delete(file);
+            }
+        }
+        LOG.info("Compaction finished in {} ms", System.currentTimeMillis() - startTime);
+        compactingNow.compareAndSet(true, false);
     }
 
-    private void closeSSTables() throws IOException {
+    private void closeSSTables(List<SSTable> ssTableList) throws IOException {
         for (final Table t : ssTableList) {
             if (t instanceof Closeable) {
                 ((Closeable) t).close();
@@ -178,11 +224,16 @@ public class MyDAO implements DAO {
         }
     }
 
+    private void closeSSTables() throws IOException {
+        closeSSTables(ssTableList);
+    }
+
     @Override
     public void close() throws IOException {
         memTable.close();
         try {
             flusher.join();
+            compactionThread.join();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
