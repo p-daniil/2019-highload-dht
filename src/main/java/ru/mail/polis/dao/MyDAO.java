@@ -9,10 +9,9 @@ import ru.mail.polis.Record;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -202,7 +201,7 @@ public class MyDAO implements DAO {
             lock.writeLock().unlock();
         }
 
-        for (SSTable t : tablesToCompact) {
+        for (final SSTable t : tablesToCompact) {
             final Path file = t.getFile();
             if (!file.equals(compactedFileReseted)) {
                 if (t instanceof Closeable) {
@@ -215,7 +214,7 @@ public class MyDAO implements DAO {
         compactingNow.compareAndSet(true, false);
     }
 
-    private void closeSSTables(List<SSTable> ssTableList) throws IOException {
+    private void closeSSTables(final List<SSTable> ssTableList) throws IOException {
         for (final Table t : ssTableList) {
             if (t instanceof Closeable) {
                 ((Closeable) t).close();

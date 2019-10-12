@@ -5,11 +5,11 @@ public final class TableToFlush {
     private final Table table;
     private final boolean poisonPill;
 
-    public TableToFlush(Table table) {
+    public TableToFlush(final Table table) {
         this(table, false);
     }
 
-    public TableToFlush(Table table, boolean poisonPill) {
+    public TableToFlush(final Table table, final boolean poisonPill) {
         this.table = table;
         this.poisonPill = poisonPill;
     }

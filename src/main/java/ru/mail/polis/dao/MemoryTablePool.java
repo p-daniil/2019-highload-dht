@@ -5,7 +5,11 @@ import org.jetbrains.annotations.NotNull;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,6 +26,11 @@ public class MemoryTablePool implements Table, Closeable {
 
     private volatile MemTable current;
 
+    /**
+     * Implementation of memory table pool
+     * @param memFlushThreshold threshold after which occurs flushing in-memory table to disk
+     * @param version version of current table
+     */
     public MemoryTablePool(final long memFlushThreshold, final long version) {
         this.memFlushThreshold = memFlushThreshold;
         this.current = new MemTable(version);
@@ -30,7 +39,7 @@ public class MemoryTablePool implements Table, Closeable {
     }
 
     @Override
-    public Iterator<Cell> iterator(@NotNull ByteBuffer from) throws IOException {
+    public Iterator<Cell> iterator(@NotNull final ByteBuffer from) throws IOException {
         lock.readLock().lock();
         final List<Iterator<Cell>> iterators = new ArrayList<>();
 
@@ -47,7 +56,7 @@ public class MemoryTablePool implements Table, Closeable {
     }
 
     @Override
-    public void upsert(@NotNull ByteBuffer key, @NotNull ByteBuffer value) {
+    public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) {
         if (stop.get()) {
             throw new IllegalStateException("Already stopped");
         }
@@ -56,7 +65,7 @@ public class MemoryTablePool implements Table, Closeable {
     }
 
     @Override
-    public void remove(@NotNull ByteBuffer key) {
+    public void remove(@NotNull final ByteBuffer key) {
         if (stop.get()) {
             throw new IllegalStateException("Already stopped");
         }
@@ -122,7 +131,7 @@ public class MemoryTablePool implements Table, Closeable {
         return current.getVersion();
     }
 
-    public void setVersion(long version) {
+    public void setVersion(final long version) {
         current.setVersion(version);
     }
 

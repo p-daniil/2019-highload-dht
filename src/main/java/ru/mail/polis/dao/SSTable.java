@@ -5,7 +5,13 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.*;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -103,49 +109,11 @@ public abstract class SSTable implements Table {
         return ssTables;
     }
 
-    /**
-     * Removes old versions of SSTables and reset version of actual SSTable file to min value.
-     *
-     * @param tablesDir directory to find SSTable files
-     * @param actualFile file with actual version of SSTable
-     * @throws IOException if unable to read directory
-     */
-    protected static void removeOldVersionsAndResetCounter(
-            final Path tablesDir,
-            final Path actualFile) throws IOException {
-
-        Files.walkFileTree(tablesDir, EnumSet.noneOf(FileVisitOption.class), 1, new SimpleFileVisitor<>() {
-
-            @Override
-            public FileVisitResult visitFile(
-                    final Path file,
-                    final BasicFileAttributes attrs) throws IOException {
-
-                if (!file.equals(actualFile)) {
-                    Files.delete(file);
-                }
-
-                return FileVisitResult.CONTINUE;
-            }
-
-            @Override
-            public FileVisitResult postVisitDirectory(final Path dir, final IOException exc) throws IOException {
-                resetTableVersion(actualFile);
-                return FileVisitResult.CONTINUE;
-            }
-
-            private void resetTableVersion(final Path tableFile) throws IOException {
-                changeTableVersion(tableFile, MIN_TABLE_VERSION);
-            }
-        });
-    }
-
     public static Path resetTableVersion(final Path tableFile) throws IOException {
-        return changeTableVersion(tableFile, MIN_TABLE_VERSION);
-    }
-
-    private static Path changeTableVersion(final Path tableFile, final long newVersion) throws IOException {
-        return Files.move(tableFile, tableFile.resolveSibling(createName(newVersion)), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        return Files.move(tableFile, tableFile.resolveSibling(
+                createName(MIN_TABLE_VERSION)),
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING);
     }
 
     private static String createName(final long version) {
@@ -281,6 +249,13 @@ public abstract class SSTable implements Table {
         return createSSTable(tablePath, impl);
     }
 
+    /**
+     *  Creates SSTable from file
+     * @param tablePath path to file
+     * @param impl type of implementation of SSTable abstraction
+     * @return SSTable abstraction
+     * @throws IOException if unable to open file
+     */
     public static SSTable createSSTable(final Path tablePath, final Impl impl) throws IOException {
         if (impl == FILE_CHANNEL_READ) {
             return new SSTableFileChannel(tablePath);
