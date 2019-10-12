@@ -25,6 +25,7 @@ public class MyDAO implements DAO {
     private static final SSTable.Impl SSTABLE_IMPL = FILE_CHANNEL_READ;
     private static final ByteBuffer MIN_BYTE_BUFFER = ByteBuffer.allocate(0);
     private static final double LOAD_FACTOR = 0.1;
+    private static final double COMPACTION_THRESHOLD = 10;
 
     private final Path tablesDir;
 
@@ -134,24 +135,39 @@ public class MyDAO implements DAO {
 
         ssTableList.add(flushedTable);
         memTable.flushed(flushedTable);
+
+        if (ssTableList.size() > COMPACTION_THRESHOLD) {
+            compact();
+        }
     }
 
     @Override
     public void compact() throws IOException {
+        lock.readLock().lock();
+        LOG.info("Compaction started...");
+        final long startTime = System.currentTimeMillis();
+        final Path actualFile;
+        try {
+            actualFile = SSTable.writeTable(
+                    tablesDir,
+                    cellIterator(MIN_BYTE_BUFFER, false),
+                    memTable.getVersion());
+        } finally {
+            lock.readLock().unlock();
+        }
+        lock.writeLock().lock();
+        try {
+            closeSSTables();
+            SSTable.removeOldVersionsAndResetCounter(tablesDir, actualFile);
+            ssTableList = SSTable.findVersions(tablesDir, SSTABLE_IMPL);
 
-        final Path actualFile = SSTable.writeTable(
-                tablesDir,
-                cellIterator(MIN_BYTE_BUFFER, false),
-                memTable.getVersion());
+            assert ssTableList.size() == SSTable.MIN_TABLE_VERSION;
+            memTable.setVersion(SSTable.MIN_TABLE_VERSION + 1);
+            LOG.info("Compaction finished in {} ms", System.currentTimeMillis() - startTime);
+        } finally {
+            lock.writeLock().unlock();
+        }
 
-        closeSSTables();
-        SSTable.removeOldVersionsAndResetCounter(tablesDir, actualFile);
-        ssTableList = SSTable.findVersions(tablesDir, SSTABLE_IMPL);
-
-        assert ssTableList.size() == SSTable.MIN_TABLE_VERSION;
-        int versionCounter = SSTable.MIN_TABLE_VERSION;
-
-        memTable.setVersion(++versionCounter);
     }
 
     private void closeSSTables() throws IOException {
