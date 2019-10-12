@@ -26,7 +26,8 @@ public class SimpleHttpServer extends HttpServer implements Service {
     }
 
     /**
-     * Method for handling "/v0/status" requests
+     * Method for handling "/v0/status" requests.
+     *
      * @param request received request
      * @return response to client
      */
@@ -37,7 +38,8 @@ public class SimpleHttpServer extends HttpServer implements Service {
     }
 
     /**
-     * Method for handling "/v0/entity" requests
+     * Method for handling "/v0/entity" requests.
+     *
      * @param id id of entity, passed in url
      * @param request received request
      * @return response to client

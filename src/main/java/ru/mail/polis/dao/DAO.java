@@ -24,7 +24,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
-import java.util.NoSuchElementException;
 
 /**
  * Storage interface.

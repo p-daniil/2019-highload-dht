@@ -146,7 +146,7 @@ public final class Iters {
     }
 
     /**
-     * Merges iterators, collapses equals cells and removes cells, marked as removed
+     * Merges iterators, collapses equals cells and skip cells, marked as removed.
      *
      * @param cellIterators list of iterators to processing on them
      * @return single iterator, without equals and removed cells

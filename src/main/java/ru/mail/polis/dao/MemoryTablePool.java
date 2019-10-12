@@ -27,7 +27,7 @@ public class MemoryTablePool implements Table, Closeable {
     private volatile MemTable current;
 
     /**
-     * Implementation of memory table pool
+     * Implementation of memory table pool.
      *
      * @param memFlushThreshold threshold after which occurs flushing in-memory table to disk
      * @param version version of current table

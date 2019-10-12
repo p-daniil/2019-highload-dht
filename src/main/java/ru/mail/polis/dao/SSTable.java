@@ -110,7 +110,7 @@ public abstract class SSTable implements Table {
     }
 
     /**
-     * Resets version of table, stored in file name to {@code MIN_TABLE_VERSION}
+     * Resets version of table, stored in file name to {@code MIN_TABLE_VERSION}.
      *
      * @param tableFile file to reset version
      * @return path to file after reset
@@ -257,7 +257,7 @@ public abstract class SSTable implements Table {
     }
 
     /**
-     *  Creates SSTable from file
+     *  Creates SSTable from file.
      *
      * @param tablePath path to file
      * @param impl type of implementation of SSTable abstraction
