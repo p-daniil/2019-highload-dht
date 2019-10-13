@@ -84,6 +84,7 @@ public class MyDAO implements DAO {
                 compactionLock.lock();
                 try {
                     needCompaction.await();
+                    if (ssTableList.size() > COMPACTION_THRESHOLD) continue;
                     if (!stopCompaction.get()) {
                         compact();
                     }
