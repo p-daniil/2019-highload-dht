@@ -222,6 +222,7 @@ public class MyDAO implements DAO {
                 Files.delete(file);
             }
         }
+        compactingNow.set(false);
         if (stopCompaction.get()) {
             compactionLock.lock();
             try {
@@ -230,7 +231,6 @@ public class MyDAO implements DAO {
                 compactionLock.unlock();
             }
         }
-        compactingNow.set(false);
         LOG.info("Compaction finished in {} ms", System.currentTimeMillis() - startTime);
     }
 
@@ -256,7 +256,7 @@ public class MyDAO implements DAO {
             compactionLock.lock();
             try {
                 stopCompaction.set(true);
-                if (compactingNow.get()) {
+                while (compactingNow.get()) {
                     LOG.info("Waiting for finish of compaction");
                     finishedCompaction.await(1, TimeUnit.MINUTES);
                 }
