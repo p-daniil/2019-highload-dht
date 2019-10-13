@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -36,11 +37,13 @@ public class MyDAO implements DAO {
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final ReentrantLock compactionLock = new ReentrantLock();
     private final Condition needCompaction = compactionLock.newCondition();
+    private final Condition finishedCompaction = compactionLock.newCondition();
     private final FlusherThread flusher;
     private final CompactionThread compactionThread;
     private final MemoryTablePool memTable;
     private volatile List<SSTable> ssTableList;
     private final AtomicBoolean compactingNow = new AtomicBoolean(false);
+    private final AtomicBoolean stopCompaction = new AtomicBoolean(false);
 
     private class FlusherThread extends Thread {
 
@@ -78,13 +81,14 @@ public class MyDAO implements DAO {
         @Override
         public void run() {
             while (!isInterrupted()) {
+                compactionLock.lock();
                 try {
-                    compactionLock.lock();
-                    while (!compactingNow.get()) {
-                        needCompaction.await();
+                    needCompaction.await();
+                    if (!stopCompaction.get()) {
+                        compact();
                     }
-                    compact();
                 } catch (InterruptedException e) {
+                    LOG.info("Compaction interrupted");
                     Thread.currentThread().interrupt();
                 } catch (IOException e) {
                     LOG.error("Error while compacting", e);
@@ -92,6 +96,7 @@ public class MyDAO implements DAO {
                     compactionLock.unlock();
                 }
             }
+            LOG.info("Compaction thread stopped");
         }
     }
 
@@ -175,13 +180,20 @@ public class MyDAO implements DAO {
         memTable.flushed(flushedTable);
 
         if (ssTableList.size() > COMPACTION_THRESHOLD) {
-            needCompaction.signalAll();
+            compactionLock.lock();
+            try {
+                needCompaction.signal();
+            } finally {
+                compactionLock.unlock();
+            }
         }
     }
 
     @Override
     public void compact() throws IOException {
-        compactingNow.compareAndSet(false, true);
+        if (!compactingNow.compareAndSet(false, true)) {
+            return;
+        }
         LOG.info("Compaction started...");
         final long startTime = System.currentTimeMillis();
 
@@ -210,8 +222,16 @@ public class MyDAO implements DAO {
                 Files.delete(file);
             }
         }
+        if (stopCompaction.get()) {
+            compactionLock.lock();
+            try {
+                finishedCompaction.signal();
+            } finally {
+                compactionLock.unlock();
+            }
+        }
+        compactingNow.set(false);
         LOG.info("Compaction finished in {} ms", System.currentTimeMillis() - startTime);
-        compactingNow.compareAndSet(true, false);
     }
 
     private void closeSSTables(final List<SSTable> ssTableList) throws IOException {
@@ -228,15 +248,31 @@ public class MyDAO implements DAO {
 
     @Override
     public void close() throws IOException {
+        LOG.info("Closing DAO...");
         memTable.close();
         try {
             flusher.join();
-            compactionThread.interrupt();
+            LOG.info("Flusher closed");
+            compactionLock.lock();
+            try {
+                stopCompaction.set(true);
+                if (compactingNow.get()) {
+                    LOG.info("Waiting for finish of compaction");
+                    finishedCompaction.await(1, TimeUnit.MINUTES);
+                }
+                LOG.info("Interrupt compaction");
+                compactionThread.interrupt();
+
+            } finally {
+                compactionLock.unlock();
+            }
             compactionThread.join();
+            LOG.info("Compaction closed");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
             closeSSTables();
         }
+        LOG.info("DAO closed");
     }
 }
