@@ -16,7 +16,7 @@ public final class MemTable implements Table {
 
     private final NavigableMap<ByteBuffer, Value> db = new ConcurrentSkipListMap<>();
     private final AtomicLong size = new AtomicLong();
-    private long version;
+    private final long version;
 
     /**
      * Implementation of in-memory table.
@@ -70,9 +70,5 @@ public final class MemTable implements Table {
     @Override
     public long getVersion() {
         return version;
-    }
-
-    public void setVersion(final long version) {
-        this.version = version;
     }
 }

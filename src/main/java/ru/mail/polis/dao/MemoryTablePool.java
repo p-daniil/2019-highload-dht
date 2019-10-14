@@ -132,10 +132,6 @@ public class MemoryTablePool implements Table, Closeable {
         return current.getVersion();
     }
 
-    public void setVersion(final long version) {
-        current.setVersion(version);
-    }
-
     @Override
     public void close() throws IOException {
         if (!stop.compareAndSet(false, true)) {
