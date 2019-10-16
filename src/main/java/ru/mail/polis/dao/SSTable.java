@@ -24,11 +24,11 @@ import java.util.regex.Pattern;
 import static ru.mail.polis.dao.SSTable.Impl.FILE_CHANNEL_READ;
 
 public abstract class SSTable implements Table {
-    protected static final int MIN_TABLE_VERSION = 0;
-    protected static final String TABLE_FILE_SUFFIX = ".dat";
-    protected static final String TABLE_TMP_FILE_SUFFIX = ".tmp";
-    protected static final String TABLE_FILE_PREFIX = "table_";
-    protected static final String FILE_NAME_PATTERN = TABLE_FILE_PREFIX + "(\\d+)" + TABLE_FILE_SUFFIX;
+    private static final int MIN_TABLE_VERSION = 0;
+    private static final String TABLE_FILE_SUFFIX = ".dat";
+    private static final String TABLE_TMP_FILE_SUFFIX = ".tmp";
+    private static final String TABLE_FILE_PREFIX = "table_";
+    private static final String FILE_NAME_PATTERN = TABLE_FILE_PREFIX + "(\\d+)" + TABLE_FILE_SUFFIX;
     
     protected final Path file;
     protected final long size;
@@ -44,13 +44,13 @@ public abstract class SSTable implements Table {
      * 
      * @param file SSTable file
      */
-    public SSTable(final Path file) throws IOException {
+    SSTable(final Path file) throws IOException {
         this.file = file;
         size = Files.size(file);
         version = getVersionFromName(file.getFileName().toString());
     }
 
-    protected int findStartIndex(final ByteBuffer from, final int low, final int high) throws IOException {
+    int findStartIndex(final ByteBuffer from, final int low, final int high) throws IOException {
         int curLow = low;
         int curHigh = high;
 
@@ -80,7 +80,7 @@ public abstract class SSTable implements Table {
      * @return list of SSTable abstractions
      * @throws IOException if unable to read directory
      */
-    protected static List<SSTable> findVersions(
+    static List<SSTable> findVersions(
             final Path tablesDir,
             final Impl impl) throws IOException {
         
@@ -115,7 +115,7 @@ public abstract class SSTable implements Table {
      * @return path to file after reset
      * @throws IOException if unable to read file
      */
-    public static Path resetTableVersion(final Path tableFile) throws IOException {
+    static Path resetTableVersion(final Path tableFile) throws IOException {
         return Files.move(tableFile, tableFile.resolveSibling(
                 createName(MIN_TABLE_VERSION)),
                 StandardCopyOption.ATOMIC_MOVE,
@@ -126,17 +126,17 @@ public abstract class SSTable implements Table {
         return TABLE_FILE_PREFIX + version + TABLE_FILE_SUFFIX;
     }
     
-    protected static long getVersionFromName(final String fileName) {
+    private static long getVersionFromName(final String fileName) {
         final Pattern pattern = Pattern.compile(FILE_NAME_PATTERN);
         final Matcher matcher = pattern.matcher(fileName);
         if (matcher.matches()) {
-            return Long.valueOf(matcher.group(1));
+            return Long.parseLong(matcher.group(1));
         } else {
             throw new IllegalArgumentException("File name doesn't match accepted format");
         }
     }
 
-    protected static boolean checkFileName(final String fileName) {
+    private static boolean checkFileName(final String fileName) {
         final Pattern pattern = Pattern.compile(FILE_NAME_PATTERN);
         final Matcher matcher = pattern.matcher(fileName);
         return matcher.matches();
@@ -222,14 +222,19 @@ public abstract class SSTable implements Table {
         return newTableFile;
     }
 
+    @Override
     public abstract Iterator<Cell> iterator(@NotNull ByteBuffer from) throws IOException;
 
+    @Override
     public abstract void upsert(@NotNull ByteBuffer key, @NotNull ByteBuffer value);
 
+    @Override
     public abstract void remove(@NotNull ByteBuffer key);
 
+    @Override
     public abstract long getSize();
 
+    @Override
     public abstract long getVersion();
 
     protected abstract ByteBuffer parseKey(final int index) throws IOException;
@@ -246,9 +251,9 @@ public abstract class SSTable implements Table {
      * @return SSTable abstraction
      * @throws IOException if unable to open file
      */
-    public static SSTable flush(
-            final Path tablesDir, 
-            final Iterator<Cell> cellIterator, 
+    static SSTable flush(
+            final Path tablesDir,
+            final Iterator<Cell> cellIterator,
             final long version,
             final Impl impl) throws IOException {
         final Path tablePath = writeTable(tablesDir, cellIterator, version);
@@ -263,7 +268,7 @@ public abstract class SSTable implements Table {
      * @return SSTable abstraction
      * @throws IOException if unable to open file
      */
-    public static SSTable createSSTable(final Path tablePath, final Impl impl) throws IOException {
+    static SSTable createSSTable(final Path tablePath, final Impl impl) throws IOException {
         if (impl == FILE_CHANNEL_READ) {
             return new SSTableFileChannel(tablePath);
         } else {
