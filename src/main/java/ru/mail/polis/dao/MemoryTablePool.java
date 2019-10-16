@@ -17,7 +17,6 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class MemoryTablePool implements Table, Closeable {
-
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final NavigableMap<Long, Table> pendingFlush;
     private final BlockingQueue<TableToFlush> flushQueue;
@@ -61,7 +60,12 @@ public class MemoryTablePool implements Table, Closeable {
         if (stop.get()) {
             throw new IllegalStateException("Already stopped");
         }
-        current.upsert(key.duplicate(), value.duplicate());
+        lock.readLock().lock();
+        try {
+            current.upsert(key.duplicate(), value.duplicate());
+        } finally {
+            lock.readLock().unlock();
+        }
         enqueueFlush();
     }
 
@@ -70,7 +74,12 @@ public class MemoryTablePool implements Table, Closeable {
         if (stop.get()) {
             throw new IllegalStateException("Already stopped");
         }
-        current.remove(key.duplicate());
+        lock.readLock().lock();
+        try {
+            current.remove(key.duplicate());
+        } finally {
+            lock.readLock().unlock();
+        }
         enqueueFlush();
     }
 

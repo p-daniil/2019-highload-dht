@@ -11,7 +11,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.Iterator;
 
 public class SSTableFileChannel extends SSTable implements Closeable {
-
     private final FileChannel channel;
     private final int rowCount;
 

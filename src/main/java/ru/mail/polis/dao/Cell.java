@@ -4,7 +4,6 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 
 final class Cell implements Comparable<Cell> {
-
     private static final Comparator<Cell> CELL_COMPARATOR = Comparator
             .comparing(Cell::getKey)
             .thenComparing(Cell::getValue)

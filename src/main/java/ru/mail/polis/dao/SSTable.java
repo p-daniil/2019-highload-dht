@@ -24,7 +24,6 @@ import java.util.regex.Pattern;
 import static ru.mail.polis.dao.SSTable.Impl.FILE_CHANNEL_READ;
 
 public abstract class SSTable implements Table {
-
     protected static final int MIN_TABLE_VERSION = 0;
     protected static final String TABLE_FILE_SUFFIX = ".dat";
     protected static final String TABLE_TMP_FILE_SUFFIX = ".tmp";

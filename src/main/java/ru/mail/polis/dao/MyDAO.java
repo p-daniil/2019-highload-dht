@@ -24,7 +24,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import static ru.mail.polis.dao.SSTable.Impl.FILE_CHANNEL_READ;
 
 public class MyDAO implements DAO {
-
     private static final Logger LOG = LoggerFactory.getLogger(MyDAO.class);
 
     private static final SSTable.Impl SSTABLE_IMPL = FILE_CHANNEL_READ;

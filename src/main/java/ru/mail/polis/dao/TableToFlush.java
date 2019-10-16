@@ -1,7 +1,6 @@
 package ru.mail.polis.dao;
 
 public final class TableToFlush {
-
     private final Table table;
     private final boolean poisonPill;
 

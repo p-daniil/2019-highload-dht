@@ -13,7 +13,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @ThreadSafe
 public final class MemTable implements Table {
-
     private final NavigableMap<ByteBuffer, Value> db = new ConcurrentSkipListMap<>();
     private final AtomicLong size = new AtomicLong();
     private final long version;

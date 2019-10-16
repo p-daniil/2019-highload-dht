@@ -17,7 +17,6 @@ import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 
 public class SimpleHttpServer extends HttpServer implements Service {
-
     private final DAO dao;
 
     public SimpleHttpServer(final int port, final DAO dao) throws IOException {
