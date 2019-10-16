@@ -46,7 +46,7 @@ public class MyDAO implements DAO {
 
     private class FlusherThread extends Thread {
 
-        public FlusherThread() {
+        FlusherThread() {
             super("Flusher");
         }
 
@@ -73,7 +73,7 @@ public class MyDAO implements DAO {
 
     private class CompactionThread extends Thread {
 
-        public CompactionThread() {
+        CompactionThread() {
             super("Compaction");
         }
 
@@ -107,11 +107,11 @@ public class MyDAO implements DAO {
      * @param maxHeap   max memory, allocated for JVM
      * @throws IOException if unable to read existing SSTable files
      */
-    public MyDAO(final Path tablesDir, final long maxHeap) throws IOException {
+    MyDAO(final Path tablesDir, final long maxHeap) throws IOException {
 
         this.ssTableList = SSTable.findVersions(tablesDir, SSTABLE_IMPL);
         int version = ssTableList.size();
-        this.memTable = new MemoryTablePool((long) (maxHeap * LOAD_FACTOR), version++);
+        this.memTable = new MemoryTablePool((long) (maxHeap * LOAD_FACTOR), ++version);
 
         this.flusher = new FlusherThread();
         this.flusher.start();
@@ -153,12 +153,12 @@ public class MyDAO implements DAO {
     }
 
     @Override
-    public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) throws IOException {
+    public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) {
         memTable.upsert(key.duplicate(), value.duplicate());
     }
 
     @Override
-    public void remove(@NotNull final ByteBuffer key) throws IOException {
+    public void remove(@NotNull final ByteBuffer key) {
         memTable.remove(key.duplicate());
     }
 
@@ -203,8 +203,8 @@ public class MyDAO implements DAO {
                 cellIterator(MIN_BYTE_BUFFER, false),
                 -1);
 
-        lock.writeLock().lock();
         final Path compactedFileReseted;
+        lock.writeLock().lock();
         try {
             ssTableList.removeAll(tablesToCompact);
             compactedFileReseted = SSTable.resetTableVersion(compactedFile);

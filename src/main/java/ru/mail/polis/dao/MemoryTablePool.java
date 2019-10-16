@@ -31,7 +31,7 @@ public class MemoryTablePool implements Table, Closeable {
      * @param memFlushThreshold threshold after which occurs flushing in-memory table to disk
      * @param version version of current table
      */
-    public MemoryTablePool(final long memFlushThreshold, final long version) {
+    MemoryTablePool(final long memFlushThreshold, final long version) {
         this.memFlushThreshold = memFlushThreshold;
         this.current = new MemTable(version);
         this.pendingFlush = new TreeMap<>();
@@ -40,9 +40,8 @@ public class MemoryTablePool implements Table, Closeable {
 
     @Override
     public Iterator<Cell> iterator(@NotNull final ByteBuffer from) throws IOException {
-        lock.readLock().lock();
         final List<Iterator<Cell>> iterators = new ArrayList<>();
-
+        lock.readLock().lock();
         try {
             iterators.add(current.iterator(from));
 
@@ -99,8 +98,8 @@ public class MemoryTablePool implements Table, Closeable {
     private void enqueueFlush() {
         if (current.getSize() > memFlushThreshold) {
 
-            lock.writeLock().lock();
             TableToFlush tableToFlush = null;
+            lock.writeLock().lock();
             try {
                 if (current.getSize() > memFlushThreshold) {
                     tableToFlush = new TableToFlush(current);
@@ -142,12 +141,12 @@ public class MemoryTablePool implements Table, Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         if (!stop.compareAndSet(false, true)) {
             return;
         }
-        lock.writeLock().lock();
         TableToFlush tableToFlush;
+        lock.writeLock().lock();
         try {
             tableToFlush = new TableToFlush(current, true);
             pendingFlush.put(tableToFlush.getVersion(), tableToFlush.getTable());
