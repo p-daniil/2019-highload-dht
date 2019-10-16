@@ -5,7 +5,7 @@ import java.util.NoSuchElementException;
 public class NoSuchElementLite extends NoSuchElementException {
     private static final long serialVersionUID = 7926471152722706141L;
 
-    public NoSuchElementLite(final String s) {
+    NoSuchElementLite(final String s) {
         super(s);
     }
 
@@ -22,7 +22,7 @@ public class NoSuchElementLite extends NoSuchElementException {
      * @see     java.lang.Throwable#printStackTrace()
      */
     @Override
-    public Throwable fillInStackTrace() {
+    public synchronized Throwable fillInStackTrace() {
         return this;
     }
 }
