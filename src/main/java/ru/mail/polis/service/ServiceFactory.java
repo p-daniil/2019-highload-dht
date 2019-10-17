@@ -16,11 +16,13 @@
 
 package ru.mail.polis.service;
 
-import java.io.IOException;
-
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.jetbrains.annotations.NotNull;
-
 import ru.mail.polis.dao.DAO;
+
+import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Constructs {@link Service} instances.
@@ -37,8 +39,8 @@ public final class ServiceFactory {
     /**
      * Construct a storage instance.
      *
-     * @param port     port to bind HTTP server to
-     * @param dao      DAO to store the data
+     * @param port port to bind HTTP server to
+     * @param dao  DAO to store the data
      * @return a storage instance
      */
     @NotNull
@@ -53,6 +55,9 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Port out of range");
         }
 
-        return new SimpleHttpServer(port, dao);
+        final ExecutorService executor = Executors.newFixedThreadPool(
+                Runtime.getRuntime().availableProcessors(),
+                new ThreadFactoryBuilder().setNameFormat("worker").build());
+        return new AsyncHttpApi(port, dao, executor);
     }
 }
