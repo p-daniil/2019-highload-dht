@@ -8,6 +8,7 @@ import one.nio.server.RejectedSessionException;
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.Record;
 import ru.mail.polis.dao.DAO;
+import ru.mail.polis.dao.NoSuchElementLite;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -49,7 +50,7 @@ public class AsyncHttpApi extends HttpServer implements Service {
      */
     public void entity(final Request request,
                        final HttpSession session) throws IOException {
-        final String id = request.getParameter("id");
+        String id = request.getParameter("id=");
         if (id == null || id.isEmpty()) {
             session.sendError(Response.BAD_REQUEST, "No id");
             return;
@@ -80,7 +81,7 @@ public class AsyncHttpApi extends HttpServer implements Service {
 
     public void entities(final Request request,
                          final HttpSession session) throws IOException {
-        final String start = request.getParameter("start");
+        final String start = request.getParameter("start=");
 
         if (start == null || start.isEmpty()) {
             session.sendError(Response.BAD_REQUEST, "No start");
@@ -91,7 +92,7 @@ public class AsyncHttpApi extends HttpServer implements Service {
             session.sendError(METHOD_NOT_ALLOWED, "Wrong method");
             return;
         }
-        String end = request.getParameter("end");
+        String end = request.getParameter("end=");
         if (end != null && end.isEmpty()) {
             end = null;
         }
@@ -125,7 +126,12 @@ public class AsyncHttpApi extends HttpServer implements Service {
 
     @NotNull
     private Response get(ByteBuffer key) throws IOException {
-        final ByteBuffer value = dao.get(key);
+        final ByteBuffer value;
+        try {
+            value = dao.get(key);
+        } catch (NoSuchElementLite e) {
+            return new Response(NOT_FOUND, EMPTY);
+        }
         final ByteBuffer duplicate = value.duplicate();
         final byte[] body = new byte[duplicate.remaining()];
         duplicate.get(body);
