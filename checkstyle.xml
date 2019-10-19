@@ -12,7 +12,6 @@
 
     <module name="TreeWalker">
         <module name="OuterTypeFilename"/>
-        <module name="NewlineAtEndOfFile"/>
         <module name="GenericWhitespace"/>
         <module name="SingleSpaceSeparator">
             <property name="validateComments" value="true"/>
