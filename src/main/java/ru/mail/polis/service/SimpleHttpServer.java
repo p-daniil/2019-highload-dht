@@ -1,45 +1,34 @@
 package ru.mail.polis.service;
 
 import com.google.common.base.Charsets;
-import one.nio.http.HttpServer;
-import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
 import one.nio.http.Param;
 import one.nio.http.Path;
 import one.nio.http.Request;
-import one.nio.http.RequestMethod;
 import one.nio.http.Response;
-import one.nio.server.AcceptorConfig;
 import ru.mail.polis.dao.DAO;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 
-public class SimpleHttpServer extends HttpServer implements Service {
-    private final DAO dao;
-
-    public SimpleHttpServer(final int port, final DAO dao) throws IOException {
-        super(getConfig(port));
-        this.dao = dao;
-    }
+public class SimpleHttpServer extends HttpApiBase {
 
     /**
-     * Method for handling "/v0/status" requests.
+     * Blocking API for database.
      *
-     * @param request received request
-     * @return response to client
+     * @param port port
+     * @param dao  database DAO
+     * @throws IOException if I/O errors occurred
      */
-    @Path("/v0/status")
-    @RequestMethod(Request.METHOD_GET)
-    public Response status(final Request request) {
-        return new Response(Response.OK, Response.EMPTY);
+    public SimpleHttpServer(final int port, final DAO dao) throws IOException {
+        super(port, dao);
     }
 
     /**
      * Method for handling "/v0/entity" requests.
      *
-     * @param id id of entity, passed in url
+     * @param id      id of entity, passed in url
      * @param request received request
      * @return response to client
      */
@@ -53,19 +42,13 @@ public class SimpleHttpServer extends HttpServer implements Service {
         try {
             switch (request.getMethod()) {
                 case Request.METHOD_GET: {
-                    final ByteBuffer value = dao.get(key);
-                    final ByteBuffer duplicate = value.duplicate();
-                    final byte[] body = new byte[duplicate.remaining()];
-                    duplicate.get(body);
-                    return new Response(Response.OK, body);
+                    return get(key);
                 }
                 case Request.METHOD_PUT: {
-                    dao.upsert(key, ByteBuffer.wrap(request.getBody()));
-                    return new Response(Response.CREATED, Response.EMPTY);
+                    return put(request, key);
                 }
                 case Request.METHOD_DELETE: {
-                    dao.remove(key);
-                    return new Response(Response.ACCEPTED, Response.EMPTY);
+                    return delete(key);
                 }
                 default: {
                     return new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
@@ -76,17 +59,6 @@ public class SimpleHttpServer extends HttpServer implements Service {
         } catch (NoSuchElementException e) {
             return new Response(Response.NOT_FOUND, "Key not found".getBytes(Charsets.UTF_8));
         }
-    }
-
-    private static HttpServerConfig getConfig(final int port) {
-        if (port <= 1024 || port >= 65535) {
-            throw new IllegalArgumentException("Invalid port");
-        }
-        final AcceptorConfig acceptorConfig = new AcceptorConfig();
-        acceptorConfig.port = port;
-        final HttpServerConfig serverConfig = new HttpServerConfig();
-        serverConfig.acceptors = new AcceptorConfig[]{acceptorConfig};
-        return serverConfig;
     }
 
     @Override

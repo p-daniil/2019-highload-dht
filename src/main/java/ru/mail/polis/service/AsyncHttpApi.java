@@ -1,16 +1,15 @@
 package ru.mail.polis.service;
 
 import com.google.common.base.Charsets;
-import one.nio.http.*;
+import one.nio.http.HttpSession;
+import one.nio.http.Request;
+import one.nio.http.Response;
 import one.nio.net.Socket;
-import one.nio.server.AcceptorConfig;
 import one.nio.server.RejectedSessionException;
-import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
 import ru.mail.polis.dao.DAO;
-import ru.mail.polis.dao.NoSuchElementLite;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -18,55 +17,57 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.Executor;
 
-import static one.nio.http.Response.*;
+import static one.nio.http.Request.METHOD_DELETE;
+import static one.nio.http.Request.METHOD_GET;
+import static one.nio.http.Request.METHOD_PUT;
+import static one.nio.http.Response.BAD_REQUEST;
+import static one.nio.http.Response.INTERNAL_ERROR;
+import static one.nio.http.Response.METHOD_NOT_ALLOWED;
+import static one.nio.http.Response.NOT_FOUND;
 
-public class AsyncHttpApi extends HttpServer implements Service {
+public class AsyncHttpApi extends HttpApiBase {
     private static final Logger LOG = LoggerFactory.getLogger(AsyncHttpApi.class);
-    private final DAO dao;
     private final Executor executor;
 
-    public AsyncHttpApi(int port, DAO dao, Executor executor) throws IOException {
-        super(getConfig(port));
-        this.dao = dao;
-        this.executor = executor;
-    }
-
     /**
-     * Method for handling "/v0/status" requests.
+     * Asynchronous API for database.
      *
-     * @param request received request
-     * @return response to client
+     * @param port     port
+     * @param dao      database DAO
+     * @param executor pool of worker threads
+     * @throws IOException if I/O errors occurred
      */
-    @Path("/v0/status")
-    @RequestMethod(Request.METHOD_GET)
-    public Response status(final Request request) {
-        return new Response(Response.OK, Response.EMPTY);
+    AsyncHttpApi(final int port, final DAO dao, final Executor executor) throws IOException {
+        super(port, dao);
+        this.executor = executor;
     }
 
     /**
      * Method for handling "/v0/entity" requests.
      *
      * @param request received request
+     * @param session current http session
+     * @throws IOException if I/O errors occurred
      */
-    public void entity(final Request request,
-                       final HttpSession session) throws IOException {
-        String id = request.getParameter("id=");
+    private void entity(final Request request,
+                        final HttpSession session) throws IOException {
+        final String id = request.getParameter("id=");
         if (id == null || id.isEmpty()) {
-            session.sendError(Response.BAD_REQUEST, "No id");
+            session.sendError(BAD_REQUEST, "No id");
             return;
         }
         final ByteBuffer key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
         try {
             switch (request.getMethod()) {
-                case Request.METHOD_GET: {
+                case METHOD_GET: {
                     executeAsync(session, () -> get(key));
                     return;
                 }
-                case Request.METHOD_PUT: {
+                case METHOD_PUT: {
                     executeAsync(session, () -> put(request, key));
                     return;
                 }
-                case Request.METHOD_DELETE: {
+                case METHOD_DELETE: {
                     executeAsync(session, () -> delete(key));
                     return;
                 }
@@ -79,16 +80,23 @@ public class AsyncHttpApi extends HttpServer implements Service {
         }
     }
 
-    public void entities(final Request request,
-                         final HttpSession session) throws IOException {
+    /**
+     * Method for handling "/v0/entities" requests.
+     *
+     * @param request received request
+     * @param session current http session
+     * @throws IOException if I/O errors occurred
+     */
+    private void entities(final Request request,
+                          final HttpSession session) throws IOException {
         final String start = request.getParameter("start=");
 
         if (start == null || start.isEmpty()) {
-            session.sendError(Response.BAD_REQUEST, "No start");
+            session.sendError(BAD_REQUEST, "No start");
             return;
         }
 
-        if (request.getMethod() != Request.METHOD_GET) {
+        if (request.getMethod() != METHOD_GET) {
             session.sendError(METHOD_NOT_ALLOWED, "Wrong method");
             return;
         }
@@ -108,41 +116,15 @@ public class AsyncHttpApi extends HttpServer implements Service {
     }
 
     @Override
-    public HttpSession createSession(Socket socket) throws RejectedSessionException {
+    public HttpSession createSession(final Socket socket) throws RejectedSessionException {
         return new StorageSession(socket, this);
-    }
-
-    @NotNull
-    private Response delete(ByteBuffer key) throws IOException {
-        dao.remove(key);
-        return new Response(Response.ACCEPTED, Response.EMPTY);
-    }
-
-    @NotNull
-    private Response put(Request request, ByteBuffer key) throws IOException {
-        dao.upsert(key, ByteBuffer.wrap(request.getBody()));
-        return new Response(Response.CREATED, Response.EMPTY);
-    }
-
-    @NotNull
-    private Response get(ByteBuffer key) throws IOException {
-        final ByteBuffer value;
-        try {
-            value = dao.get(key);
-        } catch (NoSuchElementLite e) {
-            return new Response(NOT_FOUND, EMPTY);
-        }
-        final ByteBuffer duplicate = value.duplicate();
-        final byte[] body = new byte[duplicate.remaining()];
-        duplicate.get(body);
-        return new Response(Response.OK, body);
     }
 
     private void executeAsync(final HttpSession session, final Action action) {
         executor.execute(() -> {
             try {
                 session.sendResponse(action.act());
-            } catch (Exception e) {
+            } catch (IOException e) {
                 try {
                     session.sendError(INTERNAL_ERROR, e.getMessage());
                 } catch (IOException ex) {
@@ -152,19 +134,8 @@ public class AsyncHttpApi extends HttpServer implements Service {
         });
     }
 
-    private static HttpServerConfig getConfig(final int port) {
-        if (port <= 1024 || port >= 65535) {
-            throw new IllegalArgumentException("Invalid port");
-        }
-        final AcceptorConfig acceptorConfig = new AcceptorConfig();
-        acceptorConfig.port = port;
-        final HttpServerConfig serverConfig = new HttpServerConfig();
-        serverConfig.acceptors = new AcceptorConfig[]{acceptorConfig};
-        return serverConfig;
-    }
-
     @Override
-    public void handleDefault(Request request, HttpSession session) throws IOException {
+    public void handleDefault(final Request request, final HttpSession session) throws IOException {
         switch (request.getPath()) {
             case "/v0/entity": {
                 entity(request, session);

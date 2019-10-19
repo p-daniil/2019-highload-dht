@@ -21,11 +21,11 @@ public class StorageSession extends HttpSession {
 
     private Iterator<Record> records;
 
-    StorageSession(Socket socket, HttpServer server) {
+    StorageSession(final Socket socket, final HttpServer server) {
         super(socket, server);
     }
 
-    void stream(Iterator<Record> records) throws IOException {
+    void stream(final Iterator<Record> records) throws IOException {
         this.records = records;
 
         final Response response = new Response(Response.OK);
@@ -40,7 +40,7 @@ public class StorageSession extends HttpSession {
         next();
     }
 
-    private static byte[] toByteArray(ByteBuffer buffer) {
+    private static byte[] toByteArray(final ByteBuffer buffer) {
         final ByteBuffer duplicate = buffer.duplicate();
         final byte[] bytes = new byte[duplicate.remaining()];
         duplicate.get(bytes);
@@ -70,7 +70,7 @@ public class StorageSession extends HttpSession {
         }
     }
 
-    private void writeChunk(Record record) throws IOException {
+    private void writeChunk(final Record record) throws IOException {
         final byte[] key = toByteArray(record.getKey());
         final byte[] value = toByteArray(record.getValue());
 
