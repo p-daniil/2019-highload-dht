@@ -6,6 +6,8 @@ import one.nio.net.Socket;
 import one.nio.server.AcceptorConfig;
 import one.nio.server.RejectedSessionException;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.NoSuchElementLite;
@@ -19,14 +21,12 @@ import java.util.concurrent.Executor;
 import static one.nio.http.Response.*;
 
 public class AsyncHttpApi extends HttpServer implements Service {
-
-    private final int port;
+    private static final Logger LOG = LoggerFactory.getLogger(AsyncHttpApi.class);
     private final DAO dao;
     private final Executor executor;
 
     public AsyncHttpApi(int port, DAO dao, Executor executor) throws IOException {
         super(getConfig(port));
-        this.port = port;
         this.dao = dao;
         this.executor = executor;
     }
@@ -99,8 +99,8 @@ public class AsyncHttpApi extends HttpServer implements Service {
 
         try {
             final Iterator<Record> records = dao.range(
-                    ByteBuffer.wrap(start.getBytes()),
-                    end == null ? null : ByteBuffer.wrap(end.getBytes()));
+                    ByteBuffer.wrap(start.getBytes(Charsets.UTF_8)),
+                    end == null ? null : ByteBuffer.wrap(end.getBytes(Charsets.UTF_8)));
             ((StorageSession) session).stream(records);
         } catch (IOException e) {
             session.sendError(INTERNAL_ERROR, e.getMessage());
@@ -146,7 +146,7 @@ public class AsyncHttpApi extends HttpServer implements Service {
                 try {
                     session.sendError(INTERNAL_ERROR, e.getMessage());
                 } catch (IOException ex) {
-                    ex.printStackTrace();
+                    LOG.error("Failed to send error to client: {}", ex.getMessage());
                 }
             }
         });

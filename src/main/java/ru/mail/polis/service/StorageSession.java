@@ -1,5 +1,6 @@
 package ru.mail.polis.service;
 
+import com.google.common.base.Charsets;
 import one.nio.http.HttpServer;
 import one.nio.http.HttpSession;
 import one.nio.http.Response;
@@ -14,9 +15,9 @@ import java.util.Iterator;
 
 public class StorageSession extends HttpSession {
     private static final Logger LOG = LoggerFactory.getLogger(StorageSession.class);
-    private static final byte[] CRLF = "\r\n".getBytes();
+    private static final byte[] CRLF = "\r\n".getBytes(Charsets.UTF_8);
     private static final byte LF = '\n';
-    private static final byte[] EMPTY_CHUNK = "0\r\n\r\n".getBytes();
+    private static final byte[] EMPTY_CHUNK = "0\r\n\r\n".getBytes(Charsets.UTF_8);
 
     private Iterator<Record> records;
 
@@ -80,7 +81,7 @@ public class StorageSession extends HttpSession {
 
         final byte[] chunk = new byte[chunkLength];
         final ByteBuffer buffer = ByteBuffer.wrap(chunk);
-        buffer.put(size.getBytes());
+        buffer.put(size.getBytes(Charsets.UTF_8));
         buffer.put(CRLF);
         buffer.put(key);
         buffer.put(LF);
