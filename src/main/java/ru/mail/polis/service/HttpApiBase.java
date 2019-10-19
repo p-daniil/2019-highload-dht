@@ -14,13 +14,6 @@ import ru.mail.polis.dao.NoSuchElementLite;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import static one.nio.http.Request.METHOD_GET;
-import static one.nio.http.Response.ACCEPTED;
-import static one.nio.http.Response.CREATED;
-import static one.nio.http.Response.EMPTY;
-import static one.nio.http.Response.NOT_FOUND;
-import static one.nio.http.Response.OK;
-
 public abstract class HttpApiBase extends HttpServer implements Service {
     protected final DAO dao;
 
@@ -43,9 +36,9 @@ public abstract class HttpApiBase extends HttpServer implements Service {
      * @return response to client
      */
     @Path("/v0/status")
-    @RequestMethod(METHOD_GET)
+    @RequestMethod(Request.METHOD_GET)
     public Response status(final Request request) {
-        return new Response(OK, EMPTY);
+        return new Response(Response.OK, Response.EMPTY);
     }
 
     private static HttpServerConfig getConfig(final int port) {
@@ -62,13 +55,13 @@ public abstract class HttpApiBase extends HttpServer implements Service {
     @NotNull
     protected Response delete(final ByteBuffer key) throws IOException {
         dao.remove(key);
-        return new Response(ACCEPTED, EMPTY);
+        return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 
     @NotNull
     protected Response put(final Request request, final ByteBuffer key) throws IOException {
         dao.upsert(key, ByteBuffer.wrap(request.getBody()));
-        return new Response(CREATED, EMPTY);
+        return new Response(Response.CREATED, Response.EMPTY);
     }
 
     @NotNull
@@ -77,11 +70,11 @@ public abstract class HttpApiBase extends HttpServer implements Service {
         try {
             value = dao.get(key);
         } catch (NoSuchElementLite e) {
-            return new Response(NOT_FOUND, EMPTY);
+            return new Response(Response.NOT_FOUND, Response.EMPTY);
         }
         final ByteBuffer duplicate = value.duplicate();
         final byte[] body = new byte[duplicate.remaining()];
         duplicate.get(body);
-        return new Response(OK, body);
+        return new Response(Response.OK, body);
     }
 }

@@ -17,14 +17,6 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.Executor;
 
-import static one.nio.http.Request.METHOD_DELETE;
-import static one.nio.http.Request.METHOD_GET;
-import static one.nio.http.Request.METHOD_PUT;
-import static one.nio.http.Response.BAD_REQUEST;
-import static one.nio.http.Response.INTERNAL_ERROR;
-import static one.nio.http.Response.METHOD_NOT_ALLOWED;
-import static one.nio.http.Response.NOT_FOUND;
-
 public class AsyncHttpApi extends HttpApiBase {
     private static final Logger LOG = LoggerFactory.getLogger(AsyncHttpApi.class);
     private final Executor executor;
@@ -53,30 +45,31 @@ public class AsyncHttpApi extends HttpApiBase {
                         final HttpSession session) throws IOException {
         final String id = request.getParameter("id=");
         if (id == null || id.isEmpty()) {
-            session.sendError(BAD_REQUEST, "No id");
+            session.sendError(Response.BAD_REQUEST, "No id");
             return;
         }
         final ByteBuffer key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
         try {
             switch (request.getMethod()) {
-                case METHOD_GET: {
+                case Request.METHOD_GET: {
                     executeAsync(session, () -> get(key));
                     return;
                 }
-                case METHOD_PUT: {
+                case Request.METHOD_PUT: {
                     executeAsync(session, () -> put(request, key));
                     return;
                 }
-                case METHOD_DELETE: {
+                case Request.METHOD_DELETE: {
                     executeAsync(session, () -> delete(key));
                     return;
                 }
                 default: {
-                    session.sendError(METHOD_NOT_ALLOWED, "Allowed only get, put and delete");
+                    session.sendError(Response.METHOD_NOT_ALLOWED, "Allowed only get, put and delete");
+                    return;
                 }
             }
         } catch (NoSuchElementException e) {
-            session.sendError(NOT_FOUND, "Key not found");
+            session.sendError(Response.NOT_FOUND, "Key not found");
         }
     }
 
@@ -92,12 +85,12 @@ public class AsyncHttpApi extends HttpApiBase {
         final String start = request.getParameter("start=");
 
         if (start == null || start.isEmpty()) {
-            session.sendError(BAD_REQUEST, "No start");
+            session.sendError(Response.BAD_REQUEST, "No start");
             return;
         }
 
-        if (request.getMethod() != METHOD_GET) {
-            session.sendError(METHOD_NOT_ALLOWED, "Wrong method");
+        if (request.getMethod() != Request.METHOD_GET) {
+            session.sendError(Response.METHOD_NOT_ALLOWED, "Wrong method");
             return;
         }
         String end = request.getParameter("end=");
@@ -111,7 +104,7 @@ public class AsyncHttpApi extends HttpApiBase {
                     end == null ? null : ByteBuffer.wrap(end.getBytes(Charsets.UTF_8)));
             ((StorageSession) session).stream(records);
         } catch (IOException e) {
-            session.sendError(INTERNAL_ERROR, e.getMessage());
+            session.sendError(Response.INTERNAL_ERROR, e.getMessage());
         }
     }
 
@@ -126,7 +119,7 @@ public class AsyncHttpApi extends HttpApiBase {
                 session.sendResponse(action.act());
             } catch (IOException e) {
                 try {
-                    session.sendError(INTERNAL_ERROR, e.getMessage());
+                    session.sendError(Response.INTERNAL_ERROR, e.getMessage());
                 } catch (IOException ex) {
                     LOG.error("Failed to send error to client: {}", ex.getMessage());
                 }
@@ -146,7 +139,8 @@ public class AsyncHttpApi extends HttpApiBase {
                 break;
             }
             default: {
-                session.sendError(BAD_REQUEST, "Wrong path");
+                session.sendError(Response.BAD_REQUEST, "Wrong path");
+                break;
             }
         }
     }
