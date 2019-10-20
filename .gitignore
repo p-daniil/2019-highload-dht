@@ -9,10 +9,8 @@
 !gradle/wrapper/*
 !profiling/stage2/*
 !profiling/stage3/*
-!profiling/stage4/r1k/*
-!profiling/stage4/r5k/*
-!profiling/stage4/r10k/*
-!profiling/stage4/r30k/*
+!*.svg
+!*.txt
 !gradlew.bat
 !gradlew
 !build.gradle.kts
