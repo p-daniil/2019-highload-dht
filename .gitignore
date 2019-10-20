@@ -9,6 +9,8 @@
 !gradle/wrapper/*
 !profiling/stage2/*
 !profiling/stage3/*
+!*.svg
+!*.txt
 !gradlew.bat
 !gradlew
 !build.gradle.kts
