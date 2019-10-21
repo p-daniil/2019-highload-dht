@@ -55,9 +55,6 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Port out of range");
         }
 
-        final ExecutorService executor = Executors.newFixedThreadPool(
-                Runtime.getRuntime().availableProcessors(),
-                new ThreadFactoryBuilder().setNameFormat("worker").build());
-        return new AsyncHttpApi(port, dao, executor);
+        return new SimpleHttpServer(port, dao);
     }
 }
