@@ -1,10 +1,10 @@
 package ru.mail.polis.service;
 
 import com.google.common.base.Charsets;
-import one.nio.http.HttpSession;
-import one.nio.http.Request;
-import one.nio.http.Response;
+import one.nio.http.*;
+import one.nio.net.ConnectionString;
 import one.nio.net.Socket;
+import one.nio.pool.PoolException;
 import one.nio.server.RejectedSessionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,13 +13,17 @@ import ru.mail.polis.dao.DAO;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.Executor;
 
-public class AsyncHttpApi extends HttpApiBase {
-    private static final Logger LOG = LoggerFactory.getLogger(AsyncHttpApi.class);
+public class ShardedHttpApi extends HttpApiBase {
+    private static final Logger LOG = LoggerFactory.getLogger(ShardedHttpApi.class);
     private final Executor executor;
+    private final Topology<String> topology;
+    private final Map<String, HttpClient> pool;
 
     /**
      * Asynchronous API for database.
@@ -27,11 +31,22 @@ public class AsyncHttpApi extends HttpApiBase {
      * @param port     port
      * @param dao      database DAO
      * @param executor pool of worker threads
+     * @param topology topology of cluster
      * @throws IOException if I/O errors occurred
      */
-    AsyncHttpApi(final int port, final DAO dao, final Executor executor) throws IOException {
+    ShardedHttpApi(final int port, final DAO dao, final Executor executor, final Topology<String> topology) throws IOException {
         super(port, dao);
         this.executor = executor;
+        this.topology = topology;
+
+        this.pool = new HashMap<>();
+        for (String node : topology.all()) {
+            if (topology.isMe(node)) {
+                continue;
+            }
+            assert !pool.containsKey(node);
+            this.pool.put(node, new HttpClient(new ConnectionString(node + "?timeout=100")));
+        }
     }
 
     /**
@@ -49,6 +64,13 @@ public class AsyncHttpApi extends HttpApiBase {
             return;
         }
         final ByteBuffer key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
+
+        final String primaryNode = topology.primaryFor(key);
+        if (!topology.isMe(primaryNode)) {
+            executeAsync(session, () -> proxy(request, primaryNode));
+            return;
+        }
+
         try {
             switch (request.getMethod()) {
                 case Request.METHOD_GET: {
@@ -125,6 +147,14 @@ public class AsyncHttpApi extends HttpApiBase {
                 }
             }
         });
+    }
+
+    private Response proxy(Request request, String node) throws IOException {
+        try {
+            return pool.get(node).invoke(request);
+        } catch (InterruptedException | PoolException | HttpException e) {
+            throw new IOException("Failed to proxy", e);
+        }
     }
 
     @Override
