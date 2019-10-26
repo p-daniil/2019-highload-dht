@@ -1,7 +1,11 @@
 package ru.mail.polis.service;
 
 import com.google.common.base.Charsets;
-import one.nio.http.*;
+import one.nio.http.HttpClient;
+import one.nio.http.HttpException;
+import one.nio.http.HttpSession;
+import one.nio.http.Request;
+import one.nio.http.Response;
 import one.nio.net.ConnectionString;
 import one.nio.net.Socket;
 import one.nio.pool.PoolException;
@@ -34,13 +38,16 @@ public class ShardedHttpApi extends HttpApiBase {
      * @param topology topology of cluster
      * @throws IOException if I/O errors occurred
      */
-    ShardedHttpApi(final int port, final DAO dao, final Executor executor, final Topology<String> topology) throws IOException {
+    ShardedHttpApi(final int port,
+                   final DAO dao,
+                   final Executor executor,
+                   final Topology<String> topology) throws IOException {
         super(port, dao);
         this.executor = executor;
         this.topology = topology;
 
         this.pool = new HashMap<>();
-        for (String node : topology.all()) {
+        for (final String node : topology.all()) {
             if (topology.isMe(node)) {
                 continue;
             }
@@ -149,7 +156,7 @@ public class ShardedHttpApi extends HttpApiBase {
         });
     }
 
-    private Response proxy(Request request, String node) throws IOException {
+    private Response proxy(final Request request, final String node) throws IOException {
         try {
             return pool.get(node).invoke(request);
         } catch (InterruptedException | PoolException | HttpException e) {

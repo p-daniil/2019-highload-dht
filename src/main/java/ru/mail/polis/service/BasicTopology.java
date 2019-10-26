@@ -6,10 +6,16 @@ import java.util.Set;
 
 public class BasicTopology implements Topology<String> {
 
-    private String[] nodes;
-    private String me;
+    private final String[] nodes;
+    private final String me;
 
-    public BasicTopology(String me, Set<String> nodes) {
+    /**
+     * Basic implementation of cluster topology.
+     *
+     * @param me node, which has this instance of topology
+     * @param nodes all nodes in cluster
+     */
+    public BasicTopology(final String me, final Set<String> nodes) {
         assert nodes.contains(me);
         this.me = me;
         this.nodes = new String[nodes.size()];
@@ -18,14 +24,14 @@ public class BasicTopology implements Topology<String> {
     }
 
     @Override
-    public String primaryFor(ByteBuffer key) {
+    public String primaryFor(final ByteBuffer key) {
         final int hash = key.hashCode();
         final int n = (hash & Integer.MAX_VALUE) % nodes.length;
         return nodes[n];
     }
 
     @Override
-    public boolean isMe(String node) {
+    public boolean isMe(final String node) {
         return node.equals(me);
     }
 
