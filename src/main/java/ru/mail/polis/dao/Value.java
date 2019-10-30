@@ -2,7 +2,7 @@ package ru.mail.polis.dao;
 
 import java.nio.ByteBuffer;
 
-final class Value implements Comparable<Value> {
+public final class Value implements Comparable<Value> {
     private final long timeStamp;
     private final boolean tombstone;
     private final ByteBuffer data;

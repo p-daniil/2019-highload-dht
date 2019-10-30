@@ -2,6 +2,7 @@ package ru.mail.polis.service;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 
 public class BasicTopology implements Topology<String> {
@@ -25,9 +26,23 @@ public class BasicTopology implements Topology<String> {
 
     @Override
     public String primaryFor(final ByteBuffer key) {
+        return nodes[primaryIndex(key)];
+    }
+
+    @Override
+    public Set<String> primaryFor(ByteBuffer key, int from) {
+        assert from <= nodes.length;
+        final int n = primaryIndex(key);
+        final Set<String> primaryNodes = new HashSet<>(from);
+        for (int i = n, counter = from; counter > 0; i++, counter--) {
+            primaryNodes.add(nodes[i % nodes.length]);
+        }
+        return primaryNodes;
+    }
+
+    private int primaryIndex(ByteBuffer key) {
         final int hash = key.hashCode();
-        final int n = (hash & Integer.MAX_VALUE) % nodes.length;
-        return nodes[n];
+        return (hash & Integer.MAX_VALUE) % nodes.length;
     }
 
     @Override
