@@ -9,7 +9,7 @@ import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.DAO;
-import ru.mail.polis.dao.NoSuchElementLite;
+import ru.mail.polis.dao.NoSuchElementLiteException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -69,7 +69,7 @@ public abstract class HttpApiBase extends HttpServer implements Service {
         final ByteBuffer value;
         try {
             value = dao.get(key);
-        } catch (NoSuchElementLite e) {
+        } catch (NoSuchElementLiteException e) {
             return new Response(Response.NOT_FOUND, Response.EMPTY);
         }
         final ByteBuffer duplicate = value.duplicate();

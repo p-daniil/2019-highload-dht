@@ -2,10 +2,10 @@ package ru.mail.polis.dao;
 
 import java.util.NoSuchElementException;
 
-public class NoSuchElementLite extends NoSuchElementException {
+public class NoSuchElementLiteException extends NoSuchElementException {
     private static final long serialVersionUID = 7926471152722706141L;
 
-    NoSuchElementLite(final String s) {
+    NoSuchElementLiteException(final String s) {
         super(s);
     }
 

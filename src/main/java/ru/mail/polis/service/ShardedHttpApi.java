@@ -186,5 +186,4 @@ public class ShardedHttpApi extends HttpApiBase {
     interface Action {
         Response act() throws IOException;
     }
-
 }

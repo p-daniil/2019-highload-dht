@@ -46,5 +46,4 @@ final class Value implements Comparable<Value> {
         // "this" is lower if his timestamp is bigger.
         return Long.compare(o.getTimeStamp(), this.getTimeStamp());
     }
-
 }

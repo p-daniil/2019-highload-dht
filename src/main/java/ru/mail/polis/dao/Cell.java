@@ -39,5 +39,4 @@ final class Cell implements Comparable<Cell> {
     public int compareTo(final Cell o) {
         return CELL_COMPARATOR.compare(this, o);
     }
-
 }
