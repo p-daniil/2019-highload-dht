@@ -62,7 +62,7 @@ public final class ServiceFactory {
         final Topology<String> basicTopology = new BasicTopology("http://localhost:" + port, topology);
         final ExecutorService executor = Executors.newFixedThreadPool(
                 Runtime.getRuntime().availableProcessors(),
-                new ThreadFactoryBuilder().setNameFormat("worker").build());
+                new ThreadFactoryBuilder().setNameFormat("worker-%d").build());
         return new ShardedHttpApi(port, dao, executor, basicTopology);
     }
 }
