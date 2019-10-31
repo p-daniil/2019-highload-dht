@@ -141,6 +141,7 @@ public class ShardedHttpApi extends HttpApiBase {
         }
         lock.readLock();
         try {
+            LOG.info("Received {} responses from nodes. Process them.", af.ack);
             responses.iterator();
         } finally {
             lock.readLock().unlock();
@@ -149,6 +150,7 @@ public class ShardedHttpApi extends HttpApiBase {
     }
 
     private void handleResponse(HttpSession session, List<Response> responses, CountDownLatch latch, AsyncResult<Response> ar) {
+        LOG.info("Received response from node");
         if (ar.succeeded()) {
             final Response response = ar.result();
             responses.add(response);

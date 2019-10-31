@@ -23,7 +23,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static ru.mail.polis.dao.SSTable.Impl.FILE_CHANNEL_READ;
 
-public class MyDAO implements DAO {
+public class MyDAO implements DAO, InternalDAO {
     private static final Logger LOG = LoggerFactory.getLogger(MyDAO.class);
 
     private static final SSTable.Impl SSTABLE_IMPL = FILE_CHANNEL_READ;
@@ -69,8 +69,8 @@ public class MyDAO implements DAO {
                 LOG.info("Poison pill received. Stop flushing.");
             }
         }
-    }
 
+    }
     private class CompactionThread extends Thread {
 
         CompactionThread() {
@@ -98,8 +98,8 @@ public class MyDAO implements DAO {
             }
             LOG.info("Compaction thread stopped");
         }
-    }
 
+    }
     /**
      * DAO Implementation for LSM Database.
      *
@@ -120,6 +120,21 @@ public class MyDAO implements DAO {
         this.compactionThread.start();
 
         this.tablesDir = tablesDir;
+    }
+
+    @Override
+    public Value getValue(ByteBuffer key) throws IOException, NoSuchElementLiteException {
+        final Iterator<Cell> iter = cellIterator(key, true);
+        if (!iter.hasNext()) {
+            throw new NoSuchElementLiteException("Not found");
+        }
+
+        final Cell next = iter.next();
+        if (next.getKey().equals(key)) {
+            return next.getValue();
+        } else {
+            throw new NoSuchElementLiteException("Not found");
+        }
     }
 
     @NotNull
