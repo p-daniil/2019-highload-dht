@@ -3,15 +3,13 @@ package ru.mail.polis.service;
 import com.google.common.base.Charsets;
 import one.nio.http.*;
 import one.nio.net.ConnectionString;
-import one.nio.net.Session;
 import one.nio.net.Socket;
 import one.nio.pool.PoolException;
 import one.nio.server.RejectedSessionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
-import ru.mail.polis.dao.DAO;
-import ru.mail.polis.dao.Value;
+import ru.mail.polis.dao.InternalDAO;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -26,6 +24,7 @@ public class ShardedHttpApi extends HttpApiBase {
     private static final Logger LOG = LoggerFactory.getLogger(ShardedHttpApi.class);
 
     private static final String PROXY_HEADER = "Node polling: true";
+    private static final String TIMESTAMP_HEADER = "Timestamp: ";
 
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final Executor executor;
@@ -42,7 +41,7 @@ public class ShardedHttpApi extends HttpApiBase {
      * @throws IOException if I/O errors occurred
      */
     ShardedHttpApi(final int port,
-                   final DAO dao,
+                   final InternalDAO dao,
                    final Executor executor,
                    final Topology<String> topology) throws IOException {
         super(port, dao);
@@ -189,6 +188,79 @@ public class ShardedHttpApi extends HttpApiBase {
         }
     }
 
+//    private Response processNodesResponses(List<Response> nodesResponses, Request request, int ack) {
+//        if (nodesResponses.size() < ack) {
+//            return new Response("504 Not Enough Replicas", Response.EMPTY);
+//        }
+//        switch (request.getMethod()) {
+//            case Request.METHOD_GET: {
+//            }
+//            case Request.METHOD_PUT: {
+//            }
+//            case Request.METHOD_DELETE: {
+//            }
+//            default: {
+//                return null;
+//            }
+//        }
+//        for (Response response : nodesResponses) {
+//            final int statusCode = response.getStatus();
+//            if (statusCode == 200) {
+//                final byte[] body = response.getBody();
+//                ByteBuffer.wrap(body);
+//
+//            }
+//        }
+//        return
+//    }
+
+    private static Value from(final Response response) throws IOException {
+        final String timestamp = response.getHeader(TIMESTAMP_HEADER);
+        if (response.getStatus() == 200) {
+            if (timestamp == null) {
+                throw new IllegalArgumentException("Wrong input data");
+            }
+            return Value.present(response.getBody(), Long.parseLong(timestamp));
+        } else if (response.getStatus() == 404) {
+            if (timestamp == null) {
+                return Value.absent();
+            } else {
+                return Value.removed(Long.parseLong(timestamp));
+            }
+        } else {
+            throw new IOException();
+        }
+    }
+
+    private static Response from(final Value value, final boolean proxy) {
+        Response result;
+        switch (value.getState()) {
+            case PRESENT:
+                result = new Response(Response.OK, value.getData());
+                if (proxy) {
+                    result.addHeader(TIMESTAMP_HEADER + value.getTimestamp());
+                }
+                return result;
+            case REMOVED:
+                result = new Response(Response.NOT_FOUND, Response.EMPTY);
+                if (proxy) {
+                    result.addHeader(TIMESTAMP_HEADER + value.getTimestamp());
+                }
+                return result;
+            case ABSENT:
+                return new Response(Response.NOT_FOUND, Response.EMPTY);
+            default:
+                throw new IllegalArgumentException("Wrong input data");
+        }
+    }
+
+    private static Value merge(final List<Value> values) {
+        return values.stream()
+                .filter(value -> value.getState() != Value.State.ABSENT)
+                .max(Comparator.comparingLong(Value::getTimestamp))
+                .orElseGet(Value::absent);
+    }
+
     private Action<Response> getRequestHandler(Request request, HttpSession session, ByteBuffer key) {
         switch (request.getMethod()) {
             case Request.METHOD_GET: {
@@ -232,7 +304,7 @@ public class ShardedHttpApi extends HttpApiBase {
         }
 
         try {
-            final Iterator<Record> records = dao.range(
+            final Iterator<Record> records = dao.cellRange(
                     ByteBuffer.wrap(start.getBytes(Charsets.UTF_8)),
                     end == null ? null : ByteBuffer.wrap(end.getBytes(Charsets.UTF_8)));
             ((StorageSession) session).stream(records);

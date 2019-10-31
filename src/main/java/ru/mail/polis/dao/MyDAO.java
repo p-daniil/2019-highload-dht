@@ -71,6 +71,7 @@ public class MyDAO implements DAO, InternalDAO {
         }
 
     }
+
     private class CompactionThread extends Thread {
 
         CompactionThread() {
@@ -100,6 +101,7 @@ public class MyDAO implements DAO, InternalDAO {
         }
 
     }
+
     /**
      * DAO Implementation for LSM Database.
      *
@@ -123,7 +125,7 @@ public class MyDAO implements DAO, InternalDAO {
     }
 
     @Override
-    public Value getValue(ByteBuffer key) throws IOException, NoSuchElementLiteException {
+    public Value getValue(ByteBuffer key) throws IOException {
         final Iterator<Cell> iter = cellIterator(key, true);
         if (!iter.hasNext()) {
             throw new NoSuchElementLiteException("Not found");
@@ -135,6 +137,21 @@ public class MyDAO implements DAO, InternalDAO {
         } else {
             throw new NoSuchElementLiteException("Not found");
         }
+    }
+
+    @Override
+    public void upsertValue(ByteBuffer key, ByteBuffer value) {
+        upsert(key, value);
+    }
+
+    @Override
+    public void removeValue(ByteBuffer key) {
+        remove(key);
+    }
+
+    @Override
+    public Iterator<Record> cellRange(ByteBuffer from, ByteBuffer to) throws IOException {
+        return range(from, to);
     }
 
     @NotNull
