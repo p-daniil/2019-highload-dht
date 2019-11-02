@@ -135,7 +135,8 @@ public class ShardedHttpApi extends HttpApiBase {
 
         for (String node : primaryNodes) {
             if (!topology.isMe(node)) {
-//                executeAsyncLatch(() -> proxy(request, node), responses, latch);
+//                executeAsync(() -> {
+//                    final Response response = proxy(request, node);
 //                    responses.add(response);
 //                    latch.countDown();
 //                    return response;
@@ -226,7 +227,7 @@ public class ShardedHttpApi extends HttpApiBase {
         }
         switch (request.getMethod()) {
             case Request.METHOD_GET: {
-                final ArrayList<Value> values = new ArrayList<>();
+                final List<Value> values = new ArrayList<>();
                 for (int i = 0; i < ack; i++) {
                     values.add(from(nodesResponses.get(i)));
                 }
@@ -377,17 +378,17 @@ public class ShardedHttpApi extends HttpApiBase {
         });
     }
 
-    private void executeAsyncLatch(final Action<Response> action, final List<Response> responses, CountDownLatch latch) {
-        executor.execute(() -> {
-            try {
-                final Response response = action.act();
-                responses.add(response);
-                latch.countDown();
-            } catch (IOException e) {
-                LOG.error("Failed to exec async action");
-            }
-        });
-    }
+//    private void executeAsyncLatch(final Action<Response> action, final List<Response> responses, CountDownLatch latch) {
+//        executor.execute(() -> {
+//            try {
+//                final Response response = action.act();
+//                responses.add(response);
+//                latch.countDown();
+//            } catch (IOException e) {
+//                LOG.error("Failed to exec async action", e);
+//            }
+//        });
+//    }
 
     private <T> void executeAsync(final Action<T> action, final Handler<AsyncResult<T>> handler) {
         final AsyncResult<T> ar = new AsyncResult<>();
@@ -436,7 +437,12 @@ public class ShardedHttpApi extends HttpApiBase {
     private Response proxy(final Request request, final String node) throws IOException {
         request.addHeader(PROXY_HEADER);
         try {
-            return pool.get(node).invoke(request);
+//            lock.writeLock().lock();
+//            try {
+                return pool.get(node).invoke(request);
+//            } finally {
+//                lock.writeLock().unlock();
+//            }
         } catch (InterruptedException | PoolException | HttpException e) {
             throw new IOException("Failed to proxy", e);
         }
