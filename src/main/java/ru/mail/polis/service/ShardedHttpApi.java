@@ -135,13 +135,22 @@ public class ShardedHttpApi extends HttpApiBase {
 
         for (String node : primaryNodes) {
             if (!topology.isMe(node)) {
-//                executeAsync(() -> {
-//                    final Response response = proxy(request, node);
-//                    responses.add(response);
-//                    latch.countDown();
-//                    return response;
-//                });
-                executeAsync(() -> proxy(request, node), ar -> handleResponse(session, responses, latch, ar));
+                executeAsync(() -> {
+                    try {
+                        final Response response = proxy(request, node);
+                        responses.add(response);
+                        latch.countDown();
+                        return response;
+                    } catch (IOException e) {
+                        LOG.info("IO error occurred, while sending request to node: {} : {}", node, e.getMessage());
+                        return null;
+                    } catch (PoolException pe) {
+                        LOG.info("Node unavailable: {}", pe.getMessage());
+//                        latch.countDown();
+                        return null;
+                    }
+                });
+//                executeAsync(() -> proxy(request, node), ar -> handleResponse(session, responses, latch, ar));
             } else {
                 try {
                     final Action<Response> action = getRequestHandler(request, key);
@@ -150,10 +159,18 @@ public class ShardedHttpApi extends HttpApiBase {
                         return;
                     }
                     executeAsync(() -> {
-                        final Response response = action.act();
-                        responses.add(response);
-                        latch.countDown();
-                        return response;
+//                        try {
+                            final Response response = action.act();
+                            responses.add(response);
+                            latch.countDown();
+                            return response;
+//                        } catch (IOException e) {
+//                            LOG.info("Failed to get response from node", e);
+//                            responses.add(new Response(Response.BAD_GATEWAY, Response.EMPTY));
+//                            latch.countDown();
+//                            return null;
+//                        }
+
                     });
 //                    executeAsync(action, ar -> handleResponse(session, responses, latch, ar));
                 } catch (NoSuchElementException e) {
@@ -163,7 +180,9 @@ public class ShardedHttpApi extends HttpApiBase {
         }
 
         try {
-            if(!latch.await(3, TimeUnit.SECONDS)) {
+//            latch.await();
+            if(!latch.await(500, TimeUnit.MILLISECONDS)) {
+                LOG.info("Latch timeout");
                 session.sendError("504", "Not Enough Replicas");
             }
         } catch (InterruptedException e) {
@@ -223,6 +242,7 @@ public class ShardedHttpApi extends HttpApiBase {
     private void processNodesResponses(List<Response> nodesResponses, HttpSession session, Request request, int ack) throws IOException {
         LOG.info("Start processing node responses");
         if (nodesResponses.size() < ack) {
+            LOG.info("Not enough replicas");
             session.sendError("504", "Not Enough Replicas");
         }
         switch (request.getMethod()) {
@@ -434,7 +454,7 @@ public class ShardedHttpApi extends HttpApiBase {
         });
     }
 
-    private Response proxy(final Request request, final String node) throws IOException {
+    private synchronized Response proxy(final Request request, final String node) throws IOException, PoolException {
         request.addHeader(PROXY_HEADER);
         try {
 //            lock.writeLock().lock();
@@ -443,7 +463,7 @@ public class ShardedHttpApi extends HttpApiBase {
 //            } finally {
 //                lock.writeLock().unlock();
 //            }
-        } catch (InterruptedException | PoolException | HttpException e) {
+        } catch (InterruptedException | HttpException e) {
             throw new IOException("Failed to proxy", e);
         }
     }
