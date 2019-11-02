@@ -82,11 +82,8 @@ public abstract class HttpApiBase extends HttpServer implements Service {
         return new Response(Response.CREATED, Response.EMPTY);
     }
 
-    @NotNull
     protected Response delete(final ByteBuffer key) {
         dao.removeValue(key);
         return new Response(Response.ACCEPTED, Response.EMPTY);
     }
-
-
 }
