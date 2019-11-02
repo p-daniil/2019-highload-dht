@@ -4,7 +4,7 @@ import com.google.common.base.Splitter;
 
 import java.util.List;
 
-public class RF {
+public final class RF {
     final int ack;
     final int from;
 
@@ -16,26 +16,24 @@ public class RF {
     static RF parse(final String rf) {
         final List<String> splited = Splitter.on('/').splitToList(rf);
 
-        final int ack;
-        try {
-            ack = Integer.parseInt(splited.get(0));
-        } catch (Exception e) {
-            throw new IllegalArgumentException("ack parameter is invalid");
+        int ack = -1;
+        final String ackParam = splited.get(0);
+        if (ackParam != null) {
+            ack = Integer.parseInt(ackParam);
         }
 
-        final int from;
-        try {
-            from = Integer.parseInt(splited.get(1));
-        } catch (Exception e) {
-            throw new IllegalArgumentException("from parameter is invalid");
+        int from = -1;
+        final String fromParam = splited.get(1);
+        if (fromParam != null) {
+            from = Integer.parseInt(fromParam);
+        }
+
+        if (ack <= 0 || from <= 0) {
+            throw new IllegalArgumentException("ack and from should be larger than 0");
         }
         if (ack > from) {
             throw new IllegalArgumentException("ack shouldn't be larger than from");
         }
-        if (ack <= 0) {
-            throw new IllegalArgumentException("ack should be larger than 0");
-        }
-
         return new RF(ack, from);
     }
 

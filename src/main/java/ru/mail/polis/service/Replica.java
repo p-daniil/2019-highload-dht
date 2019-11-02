@@ -3,6 +3,7 @@ package ru.mail.polis.service;
 import one.nio.http.Response;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
@@ -11,12 +12,14 @@ import static ru.mail.polis.service.HttpApiBase.TIMESTAMP_HEADER;
 public final class Replica {
     private static final Replica ABSENT = new Replica(null, -1, State.ABSENT);
 
-    private final byte[] data;
+    private byte[] data;
     private final long timestamp;
     private final State state;
 
     private Replica(final byte[] data, final long timestamp, final State state) {
-        this.data = data;
+        if (data != null) {
+            this.data = Arrays.copyOf(data, data.length);
+        }
         this.timestamp = timestamp;
         this.state = state;
     }
