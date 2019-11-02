@@ -188,21 +188,23 @@ public class ShardedHttpApi extends HttpApiBase {
         }
         switch (request.getMethod()) {
             case Request.METHOD_GET: {
-                final List<Replica> replicas = new ArrayList<>();
-                for (int i = 0; i < ack; i++) {
-                    replicas.add(Replica.fromResponse(nodesResponses.get(i)));
-                }
-                session.sendResponse(Replica.toResponse(Replica.merge(replicas)));
+                executeAsync(session, () -> {
+                    final List<Replica> replicas = new ArrayList<>();
+                    for (int i = 0; i < ack; i++) {
+                        replicas.add(Replica.fromResponse(nodesResponses.get(i)));
+                    }
+                    return Replica.toResponse(Replica.merge(replicas));
+                });
                 LOG.info("Sended response to client on GET");
                 break;
             }
             case Request.METHOD_PUT: {
-                session.sendResponse(new Response(Response.CREATED, Response.EMPTY));
+                executeAsync(session, () -> new Response(Response.CREATED, Response.EMPTY));
                 LOG.info("Successfully send response to client on PUT request");
                 break;
             }
             case Request.METHOD_DELETE: {
-                session.sendResponse(new Response(Response.ACCEPTED, Response.EMPTY));
+                executeAsync(session, () -> new Response(Response.ACCEPTED, Response.EMPTY));
                 LOG.info("Successfully send response to client on DELETE request");
                 break;
             }
@@ -267,7 +269,7 @@ public class ShardedHttpApi extends HttpApiBase {
         });
     }
 
-    private Response proxy(final Request request, final String node) throws IOException, PoolException {
+    private synchronized Response proxy(final Request request, final String node) throws IOException, PoolException {
         request.addHeader(PROXY_HEADER);
         try {
             return pool.get(node).invoke(request);
