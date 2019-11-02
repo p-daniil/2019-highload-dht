@@ -14,6 +14,6 @@ public interface InternalDAO {
 
     void removeValue(final ByteBuffer key);
 
-    Iterator<Record> cellRange(final ByteBuffer from, final ByteBuffer to) throws IOException;
+    Iterator<Record> recordRange(final ByteBuffer from, final ByteBuffer to) throws IOException;
 
 }

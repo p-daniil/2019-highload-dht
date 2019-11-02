@@ -5,7 +5,6 @@ import one.nio.http.*;
 import one.nio.net.ConnectionString;
 import one.nio.net.Socket;
 import one.nio.pool.PoolException;
-import one.nio.server.RejectedSessionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
@@ -18,20 +17,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class ShardedHttpApi extends HttpApiBase {
     private static final Logger LOG = LoggerFactory.getLogger(ShardedHttpApi.class);
 
-    private static final String PROXY_HEADER = "Node polling: true";
-    private static final String TIMESTAMP_HEADER = "Timestamp: ";
-
-    private final ReadWriteLock lock = new ReentrantReadWriteLock();
-    private final ReentrantLock handlerLock = new ReentrantLock();
-    private final Condition startHandle = handlerLock.newCondition();
     private final Executor executor;
     private final Topology<String> topology;
     private final Map<String, HttpClient> pool;
@@ -80,37 +69,18 @@ public class ShardedHttpApi extends HttpApiBase {
 
         final ByteBuffer key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
 
-        final String nodePollingHeader = request.getHeader("Node polling:");
-        if (nodePollingHeader != null && nodePollingHeader.trim().equals("true")) {
-            LOG.info("Received node polling request");
+        final String nodePollingHeader = request.getHeader(PROXY_HEADER);
+
+        if (nodePollingHeader != null) {
             final Action<Response> action = getRequestHandler(request, key);
             if (action == null) {
                 session.sendError(Response.METHOD_NOT_ALLOWED, "Allowed only get, put and delete");
                 return;
             }
-            executeAsync(session, action/*, ar -> {
-                if (ar.succeeded()) {
-                    try {
-                        LOG.info("Send response to node");
-                        session.sendResponse(ar.result());
-                    } catch (IOException e) {
-                        try {
-                            session.sendError(Response.INTERNAL_ERROR, e.getMessage());
-                        } catch (IOException ex) {
-                            LOG.error("Failed to send error to client: {}", ex.getMessage());
-                        }
-                    }
-                } else {
-                    try {
-                        session.sendError(Response.INTERNAL_ERROR, ar.cause().getMessage());
-                    } catch (IOException ex) {
-                        LOG.error("Failed to send error to client: {}", ex.getMessage());
-                    }
-                }
-            }*/);
+            executeAsync(session, action);
             return;
         }
-        LOG.info("New client request");
+
         final String replicas = request.getParameter("replicas=");
         final RF rf;
         if (replicas != null) {
@@ -127,202 +97,64 @@ public class ShardedHttpApi extends HttpApiBase {
         } else {
             rf = RF.def(topology.all().size());
         }
+        LOG.info("New client request with RF {}", rf);
 
         final Set<String> primaryNodes = topology.primaryFor(key, rf.from);
         final List<Response> responses = new CopyOnWriteArrayList<>();
         final CountDownLatch latch = new CountDownLatch(rf.ack);
-        LOG.info("Latch waiting for count down: {}", latch);
+        LOG.info("Node {} started to poll nodes", topology.getMe());
 
         for (String node : primaryNodes) {
             if (!topology.isMe(node)) {
-                executeAsync(() -> {
+                executor.execute(() -> {
                     try {
                         final Response response = proxy(request, node);
+                        LOG.info("Received response from node {}", node);
                         responses.add(response);
                         latch.countDown();
-                        return response;
                     } catch (IOException e) {
-                        LOG.info("IO error occurred, while sending request to node: {} : {}", node, e.getMessage());
-                        return null;
+                        LOG.error("Failed to execute action on node {}", node, e);
                     } catch (PoolException pe) {
-                        LOG.info("Node unavailable: {}", pe.getMessage());
-//                        latch.countDown();
-                        return null;
+                        LOG.error("Node unavailable: {}", node);
                     }
                 });
-//                executeAsync(() -> proxy(request, node), ar -> handleResponse(session, responses, latch, ar));
             } else {
-                try {
-                    final Action<Response> action = getRequestHandler(request, key);
-                    if (action == null) {
-                        session.sendError(Response.METHOD_NOT_ALLOWED, "Allowed only get, put and delete");
-                        return;
-                    }
-                    executeAsync(() -> {
-//                        try {
-                            final Response response = action.act();
-                            responses.add(response);
-                            latch.countDown();
-                            return response;
-//                        } catch (IOException e) {
-//                            LOG.info("Failed to get response from node", e);
-//                            responses.add(new Response(Response.BAD_GATEWAY, Response.EMPTY));
-//                            latch.countDown();
-//                            return null;
-//                        }
-
-                    });
-//                    executeAsync(action, ar -> handleResponse(session, responses, latch, ar));
-                } catch (NoSuchElementException e) {
-                    session.sendError(Response.NOT_FOUND, "Key not found");
-                }
-            }
-        }
-
-        try {
-//            latch.await();
-            if(!latch.await(500, TimeUnit.MILLISECONDS)) {
-                LOG.info("Latch timeout");
-                session.sendError("504", "Not Enough Replicas");
-            }
-        } catch (InterruptedException e) {
-            LOG.error("CountDownLatch was interrupted", e);
-            Thread.currentThread().interrupt();
-        }
-        lock.readLock();
-        try {
-            LOG.info("Received {} responses from nodes. Process them.", rf.ack);
-            processNodesResponses(responses, session, request, rf.ack);
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    private void handleResponse(HttpSession session, List<Response> responses, CountDownLatch latch, AsyncResult<Response> ar) {
-        LOG.info("Received response from node");
-        if (ar.succeeded()) {
-            final Response response = ar.result();
-            responses.add(response);
-            latch.countDown();
-            LOG.info("Latch counted down: {}", latch.getCount());
-        }/* else {
-            try {
-                session.sendError(Response.INTERNAL_ERROR, ar.cause().getMessage());
-            } catch (IOException ex) {
-                LOG.error("Failed to send error to client: {}", ex.getMessage());
-            }
-        }*/
-    }
-
-    private void handleRequest(Request request, HttpSession session, ByteBuffer key) throws IOException {
-        try {
-            switch (request.getMethod()) {
-                case Request.METHOD_GET: {
-                    executeAsync(session, () -> get(key));
-                    return;
-                }
-                case Request.METHOD_PUT: {
-                    executeAsync(session, () -> put(request, key));
-                    return;
-                }
-                case Request.METHOD_DELETE: {
-                    executeAsync(session, () -> delete(key));
-                    return;
-                }
-                default: {
+                final Action<Response> action = getRequestHandler(request, key);
+                if (action == null) {
                     session.sendError(Response.METHOD_NOT_ALLOWED, "Allowed only get, put and delete");
                     return;
                 }
+                executor.execute(() -> {
+                    try {
+                        final Response response = action.act();
+                        LOG.info("Received response from coordinator node");
+                        responses.add(response);
+                        latch.countDown();
+                    } catch (IOException e) {
+                        LOG.error("Failed to execute action on coordinator node", e);
+                    }
+                });
             }
-        } catch (NoSuchElementException e) {
-            session.sendError(Response.NOT_FOUND, "Key not found");
         }
-    }
 
-    private void processNodesResponses(List<Response> nodesResponses, HttpSession session, Request request, int ack) throws IOException {
-        LOG.info("Start processing node responses");
-        if (nodesResponses.size() < ack) {
-            LOG.info("Not enough replicas");
-            session.sendError("504", "Not Enough Replicas");
+        try {
+            if (!latch.await(500, TimeUnit.MILLISECONDS)) {
+                LOG.error("Node polling timeout: not enough replicas");
+                session.sendError("504", "Not Enough Replicas");
+                return;
+            }
+        } catch (InterruptedException e) {
+            LOG.error("Node polling was interrupted", e);
+            Thread.currentThread().interrupt();
         }
-        switch (request.getMethod()) {
-            case Request.METHOD_GET: {
-                final List<Value> values = new ArrayList<>();
-                for (int i = 0; i < ack; i++) {
-                    values.add(from(nodesResponses.get(i)));
-                }
-                session.sendResponse(from(merge(values), false));
-                LOG.info("Sended response to client on GET");
-                break;
-            }
-            case Request.METHOD_PUT: {
-                session.sendResponse(new Response(Response.CREATED, Response.EMPTY));
-                LOG.info("Sended response to client on PUT");
-                break;
-            }
-            case Request.METHOD_DELETE: {
-                session.sendResponse(new Response(Response.ACCEPTED, Response.EMPTY));
-                LOG.info("Sended response to client on DELETE");
-                break;
-            }
-            default: {
-                session.sendError(Response.METHOD_NOT_ALLOWED, "Method not allowed");
-                break;
-            }
-        }
-    }
-
-    private static Value from(final Response response) throws IOException {
-        final String timestamp = response.getHeader(TIMESTAMP_HEADER);
-        if (response.getStatus() == 200) {
-            if (timestamp == null) {
-                throw new IllegalArgumentException("Wrong input data");
-            }
-            return Value.present(response.getBody(), Long.parseLong(timestamp));
-        } else if (response.getStatus() == 404) {
-            if (timestamp == null) {
-                return Value.absent();
-            } else {
-                return Value.removed(Long.parseLong(timestamp));
-            }
-        } else {
-            throw new IOException();
-        }
-    }
-
-    private static Response from(final Value value, final boolean proxy) {
-        Response result;
-        switch (value.getState()) {
-            case PRESENT:
-                result = new Response(Response.OK, value.getData());
-                if (proxy) {
-                    result.addHeader(TIMESTAMP_HEADER + value.getTimestamp());
-                }
-                return result;
-            case REMOVED:
-                result = new Response(Response.NOT_FOUND, Response.EMPTY);
-                if (proxy) {
-                    result.addHeader(TIMESTAMP_HEADER + value.getTimestamp());
-                }
-                return result;
-            case ABSENT:
-                return new Response(Response.NOT_FOUND, Response.EMPTY);
-            default:
-                throw new IllegalArgumentException("Wrong input data");
-        }
-    }
-
-    private static Value merge(final List<Value> values) {
-        return values.stream()
-                .filter(value -> value.getState() != Value.State.ABSENT)
-                .max(Comparator.comparingLong(Value::getTimestamp))
-                .orElseGet(Value::absent);
+        LOG.info("Received {} responses from nodes. Process them.", rf.ack);
+        processNodesResponses(responses, session, request, rf.ack);
     }
 
     private Action<Response> getRequestHandler(Request request, ByteBuffer key) {
         switch (request.getMethod()) {
             case Request.METHOD_GET: {
-                return () -> getV(key);
+                return () -> get(key);
             }
             case Request.METHOD_PUT: {
                 return () -> put(request, key);
@@ -332,6 +164,41 @@ public class ShardedHttpApi extends HttpApiBase {
             }
             default: {
                 return null;
+            }
+        }
+    }
+
+    private void processNodesResponses(final List<Response> nodesResponses,
+                                       final HttpSession session,
+                                       final Request request,
+                                       final int ack) throws IOException {
+        if (nodesResponses.size() < ack) {
+            LOG.info("Not enough responses received");
+            session.sendError("504", "Not Enough Replicas");
+        }
+        switch (request.getMethod()) {
+            case Request.METHOD_GET: {
+                final List<Replica> replicas = new ArrayList<>();
+                for (int i = 0; i < ack; i++) {
+                    replicas.add(Replica.fromResponse(nodesResponses.get(i)));
+                }
+                session.sendResponse(Replica.toResponse(Replica.merge(replicas)));
+                LOG.info("Sended response to client on GET");
+                break;
+            }
+            case Request.METHOD_PUT: {
+                session.sendResponse(new Response(Response.CREATED, Response.EMPTY));
+                LOG.info("Successfully send response to client on PUT request");
+                break;
+            }
+            case Request.METHOD_DELETE: {
+                session.sendResponse(new Response(Response.ACCEPTED, Response.EMPTY));
+                LOG.info("Successfully send response to client on DELETE request");
+                break;
+            }
+            default: {
+                session.sendError(Response.METHOD_NOT_ALLOWED, "Method not allowed");
+                break;
             }
         }
     }
@@ -362,7 +229,7 @@ public class ShardedHttpApi extends HttpApiBase {
         }
 
         try {
-            final Iterator<Record> records = dao.cellRange(
+            final Iterator<Record> records = dao.recordRange(
                     ByteBuffer.wrap(start.getBytes(Charsets.UTF_8)),
                     end == null ? null : ByteBuffer.wrap(end.getBytes(Charsets.UTF_8)));
             ((StorageSession) session).stream(records);
@@ -372,22 +239,14 @@ public class ShardedHttpApi extends HttpApiBase {
     }
 
     @Override
-    public HttpSession createSession(final Socket socket) throws RejectedSessionException {
+    public HttpSession createSession(final Socket socket) {
         return new StorageSession(socket, this);
     }
 
     private void executeAsync(final HttpSession session, final Action<Response> action) {
-        executeAsync(session, action, null);
-    }
-
-    private void executeAsync(final HttpSession session, final Action<Response> action, final Handler<Response> handler) {
         executor.execute(() -> {
             try {
-                final Response response = action.act();
-                session.sendResponse(response);
-                if (handler != null) {
-                    handler.handle(response);
-                }
+                session.sendResponse(action.act());
             } catch (IOException e) {
                 try {
                     session.sendError(Response.INTERNAL_ERROR, e.getMessage());
@@ -398,71 +257,10 @@ public class ShardedHttpApi extends HttpApiBase {
         });
     }
 
-//    private void executeAsyncLatch(final Action<Response> action, final List<Response> responses, CountDownLatch latch) {
-//        executor.execute(() -> {
-//            try {
-//                final Response response = action.act();
-//                responses.add(response);
-//                latch.countDown();
-//            } catch (IOException e) {
-//                LOG.error("Failed to exec async action", e);
-//            }
-//        });
-//    }
-
-    private <T> void executeAsync(final Action<T> action, final Handler<AsyncResult<T>> handler) {
-        final AsyncResult<T> ar = new AsyncResult<>();
-        executor.execute(() -> {
-            try {
-                final T result = action.act();
-                ar.setResult(result);
-                handlerLock.lock();
-                try {
-                    startHandle.signal();
-                } finally {
-                    handlerLock.unlock();
-                }
-            } catch (Throwable th) {
-                ar.setCause(th);
-                handlerLock.lock();
-                try {
-                    startHandle.signal();
-                } finally {
-                    handlerLock.unlock();
-                }
-            }
-        });
-        handlerLock.lock();
-        try {
-            startHandle.await();
-            handler.handle(ar);
-        } catch (InterruptedException e) {
-            LOG.error("Handle interrupted");
-            Thread.currentThread().interrupt();
-        } finally {
-            handlerLock.unlock();
-        }
-    }
-
-    private <T> void executeAsync(final Action<T> action) {
-        executor.execute(() -> {
-            try {
-                action.act();
-            } catch (IOException e) {
-                LOG.error("Failed to execute async action", e);
-            }
-        });
-    }
-
-    private synchronized Response proxy(final Request request, final String node) throws IOException, PoolException {
+    private Response proxy(final Request request, final String node) throws IOException, PoolException {
         request.addHeader(PROXY_HEADER);
         try {
-//            lock.writeLock().lock();
-//            try {
-                return pool.get(node).invoke(request);
-//            } finally {
-//                lock.writeLock().unlock();
-//            }
+            return pool.get(node).invoke(request);
         } catch (InterruptedException | HttpException e) {
             throw new IOException("Failed to proxy", e);
         }
@@ -491,51 +289,17 @@ public class ShardedHttpApi extends HttpApiBase {
         T act() throws IOException;
     }
 
-    @FunctionalInterface
-    interface Handler<T> {
-        void handle(T result);
-    }
-
-    private static class AsyncResult<T> {
-        private T succeeded;
-        private Throwable failed;
-
-        public boolean succeeded() {
-            return succeeded != null;
-        }
-
-        public boolean failed() {
-            return failed != null;
-        }
-
-        public T result() {
-            return succeeded;
-        }
-
-        public void setResult(T result) {
-            this.succeeded = result;
-        }
-
-        public Throwable cause() {
-            return failed;
-        }
-
-        public void setCause(Throwable cause) {
-            this.failed = cause;
-        }
-    }
-
     private static class RF {
-        public final int ack;
-        public final int from;
+        final int ack;
+        final int from;
 
         private RF(final int ack, final int from) {
             this.ack = ack;
             this.from = from;
         }
 
-        public static RF parse(final String af) {
-            final String[] splited = af.split("/");
+        static RF parse(final String rf) {
+            final String[] splited = rf.split("/");
 
             final int ack;
             try {
@@ -560,10 +324,15 @@ public class ShardedHttpApi extends HttpApiBase {
             return new RF(ack, from);
         }
 
-        public static RF def(final int from) {
+        static RF def(final int from) {
             assert from > 0;
             final int ack = (from / 2) + 1;
             return new RF(ack, from);
+        }
+
+        @Override
+        public String toString() {
+            return ack + "/" + from;
         }
     }
 }

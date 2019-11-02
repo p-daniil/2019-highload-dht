@@ -156,7 +156,5 @@ public final class Iters {
                 Iterators.mergeSorted(cellIterators, Comparator.naturalOrder());
 
         return Iters.collapseEquals(mergeSortedIter, Cell::getKey);
-
-//        return Iterators.filter(collapsedIter, cell -> !cell.getValue().isRemoved());
     }
 }

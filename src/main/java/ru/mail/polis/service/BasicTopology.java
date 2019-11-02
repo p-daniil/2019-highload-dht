@@ -6,7 +6,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class BasicTopology implements Topology<String> {
-
     private final String[] nodes;
     private final String me;
 
@@ -16,17 +15,12 @@ public class BasicTopology implements Topology<String> {
      * @param me node, which has this instance of topology
      * @param nodes all nodes in cluster
      */
-    public BasicTopology(final String me, final Set<String> nodes) {
+    BasicTopology(final String me, final Set<String> nodes) {
         assert nodes.contains(me);
         this.me = me;
         this.nodes = new String[nodes.size()];
         nodes.toArray(this.nodes);
         Arrays.sort(this.nodes);
-    }
-
-    @Override
-    public String primaryFor(final ByteBuffer key) {
-        return nodes[primaryIndex(key)];
     }
 
     @Override
@@ -48,6 +42,11 @@ public class BasicTopology implements Topology<String> {
     @Override
     public boolean isMe(final String node) {
         return node.equals(me);
+    }
+
+    @Override
+    public String getMe() {
+        return me;
     }
 
     @Override

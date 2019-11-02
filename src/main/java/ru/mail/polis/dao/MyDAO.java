@@ -151,7 +151,7 @@ public class MyDAO implements DAO, InternalDAO {
     }
 
     @Override
-    public Iterator<Record> cellRange(ByteBuffer from, ByteBuffer to) throws IOException {
+    public Iterator<Record> recordRange(ByteBuffer from, ByteBuffer to) throws IOException {
         return range(from, to);
     }
 
@@ -159,7 +159,8 @@ public class MyDAO implements DAO, InternalDAO {
     @Override
     public Iterator<Record> iterator(@NotNull final ByteBuffer from) throws IOException {
         final Iterator<Cell> cellIterator = cellIterator(from, true);
-        final UnmodifiableIterator<Cell> filteredIter = Iterators.filter(cellIterator, cell -> !cell.getValue().isRemoved());
+        final UnmodifiableIterator<Cell> filteredIter =
+                Iterators.filter(cellIterator, cell -> !cell.getValue().isRemoved());
         return Iterators.transform(
                 filteredIter,
                 cell -> Record.of(cell.getKey(), cell.getValue().getData()));
