@@ -1,6 +1,7 @@
 package ru.mail.polis.dao;
 
 import com.google.common.collect.Iterators;
+import com.google.common.collect.UnmodifiableIterator;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -157,9 +158,10 @@ public class MyDAO implements DAO, InternalDAO {
     @NotNull
     @Override
     public Iterator<Record> iterator(@NotNull final ByteBuffer from) throws IOException {
-
+        final Iterator<Cell> cellIterator = cellIterator(from, true);
+        final UnmodifiableIterator<Cell> filteredIter = Iterators.filter(cellIterator, cell -> !cell.getValue().isRemoved());
         return Iterators.transform(
-                cellIterator(from, true),
+                filteredIter,
                 cell -> Record.of(cell.getKey(), cell.getValue().getData()));
     }
 

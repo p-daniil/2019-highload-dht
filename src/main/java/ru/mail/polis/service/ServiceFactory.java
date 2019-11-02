@@ -25,6 +25,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.jetbrains.annotations.NotNull;
 
 import ru.mail.polis.dao.DAO;
+import ru.mail.polis.dao.InternalDAO;
 
 /**
  * Constructs {@link Service} instances.
@@ -63,6 +64,6 @@ public final class ServiceFactory {
         final ExecutorService executor = Executors.newFixedThreadPool(
                 Runtime.getRuntime().availableProcessors(),
                 new ThreadFactoryBuilder().setNameFormat("worker-%d").build());
-        return new ShardedHttpApi(port, dao, executor, basicTopology);
+        return new ShardedHttpApi(port, (InternalDAO) dao, executor, basicTopology);
     }
 }

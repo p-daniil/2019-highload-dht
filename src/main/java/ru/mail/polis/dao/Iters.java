@@ -155,8 +155,8 @@ public final class Iters {
         final UnmodifiableIterator<Cell> mergeSortedIter =
                 Iterators.mergeSorted(cellIterators, Comparator.naturalOrder());
 
-        final Iterator<Cell> collapsedIter = Iters.collapseEquals(mergeSortedIter, Cell::getKey);
+        return Iters.collapseEquals(mergeSortedIter, Cell::getKey);
 
-        return Iterators.filter(collapsedIter, cell -> !cell.getValue().isRemoved());
+//        return Iterators.filter(collapsedIter, cell -> !cell.getValue().isRemoved());
     }
 }

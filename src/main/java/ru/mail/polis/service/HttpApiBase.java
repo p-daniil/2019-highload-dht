@@ -76,6 +76,11 @@ public abstract class HttpApiBase extends HttpServer implements Service {
         } catch (NoSuchElementLiteException e) {
             return new Response(Response.NOT_FOUND, Response.EMPTY);
         }
+        if (value.isRemoved()) {
+            final Response response = new Response(Response.NOT_FOUND, Response.EMPTY);
+            response.addHeader("Timestamp: " + value.getTimeStamp());
+            return response;
+        }
         final ByteBuffer duplicate = value.getData().duplicate();
         final byte[] body = new byte[duplicate.remaining()];
         duplicate.get(body);
