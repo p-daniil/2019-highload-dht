@@ -24,7 +24,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static ru.mail.polis.dao.SSTable.Impl.FILE_CHANNEL_READ;
 
-public class MyDAO implements DAO, InternalDAO {
+public class MyDAO implements DAO, InternalDAO, Flushable {
     private static final Logger LOG = LoggerFactory.getLogger(MyDAO.class);
 
     private static final SSTable.Impl SSTABLE_IMPL = FILE_CHANNEL_READ;
@@ -44,34 +44,6 @@ public class MyDAO implements DAO, InternalDAO {
     private volatile List<SSTable> ssTableList;
     private final AtomicBoolean compactingNow = new AtomicBoolean(false);
     private final AtomicBoolean stopCompaction = new AtomicBoolean(false);
-
-    private class FlusherThread extends Thread {
-
-        FlusherThread() {
-            super("Flusher");
-        }
-
-        @Override
-        public void run() {
-            boolean poisonReceived = false;
-            while (!poisonReceived && !isInterrupted()) {
-                TableToFlush tableToFlush = null;
-                try {
-                    tableToFlush = memTable.takeToFlush();
-                    poisonReceived = tableToFlush.isPoisonPill();
-                    flush(tableToFlush.getTable());
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                } catch (IOException e) {
-                    LOG.error("Error while flushing version: " + tableToFlush.getVersion(), e);
-                }
-            }
-            if (poisonReceived) {
-                LOG.info("Poison pill received. Stop flushing.");
-            }
-        }
-
-    }
 
     private class CompactionThread extends Thread {
 
@@ -100,7 +72,6 @@ public class MyDAO implements DAO, InternalDAO {
             }
             LOG.info("Compaction thread stopped");
         }
-
     }
 
     /**
@@ -116,7 +87,7 @@ public class MyDAO implements DAO, InternalDAO {
         int version = ssTableList.size();
         this.memTable = new MemoryTablePool((long) (maxHeap * LOAD_FACTOR), ++version);
 
-        this.flusher = new FlusherThread();
+        this.flusher = new FlusherThread(this, memTable);
         this.flusher.start();
 
         this.compactionThread = new CompactionThread();
@@ -126,7 +97,7 @@ public class MyDAO implements DAO, InternalDAO {
     }
 
     @Override
-    public Value getValue(ByteBuffer key) throws IOException {
+    public Value getValue(final ByteBuffer key) throws IOException {
         final Iterator<Cell> iter = cellIterator(key, true);
         if (!iter.hasNext()) {
             throw new NoSuchElementLiteException("Not found");
@@ -141,17 +112,17 @@ public class MyDAO implements DAO, InternalDAO {
     }
 
     @Override
-    public void upsertValue(ByteBuffer key, ByteBuffer value) {
+    public void upsertValue(final ByteBuffer key, final ByteBuffer value) {
         upsert(key, value);
     }
 
     @Override
-    public void removeValue(ByteBuffer key) {
+    public void removeValue(final ByteBuffer key) {
         remove(key);
     }
 
     @Override
-    public Iterator<Record> recordRange(ByteBuffer from, ByteBuffer to) throws IOException {
+    public Iterator<Record> recordRange(final ByteBuffer from, final ByteBuffer to) throws IOException {
         return range(from, to);
     }
 
@@ -197,7 +168,8 @@ public class MyDAO implements DAO, InternalDAO {
         memTable.remove(key.duplicate());
     }
 
-    private void flush(final Table table) throws IOException {
+    @Override
+    public void flush(final Table table) throws IOException {
         LOG.info("Flushing...\n\tCurrent table size: {} bytes\n\tHeap free: {} bytes",
                 table.getSize(),
                 Runtime.getRuntime().freeMemory());

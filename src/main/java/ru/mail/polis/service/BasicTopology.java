@@ -24,7 +24,7 @@ public class BasicTopology implements Topology<String> {
     }
 
     @Override
-    public Set<String> primaryFor(ByteBuffer key, int from) {
+    public Set<String> primaryFor(final ByteBuffer key, final int from) {
         assert from <= nodes.length;
         final int n = primaryIndex(key);
         final Set<String> primaryNodes = new HashSet<>(from);
@@ -34,7 +34,7 @@ public class BasicTopology implements Topology<String> {
         return primaryNodes;
     }
 
-    private int primaryIndex(ByteBuffer key) {
+    private int primaryIndex(final ByteBuffer key) {
         final int hash = key.hashCode();
         return (hash & Integer.MAX_VALUE) % nodes.length;
     }

@@ -1,7 +1,6 @@
 package ru.mail.polis.service;
 
 import com.google.common.base.Charsets;
-import com.google.common.base.Splitter;
 import one.nio.http.HttpClient;
 import one.nio.http.HttpException;
 import one.nio.http.HttpSession;
@@ -10,6 +9,7 @@ import one.nio.http.Response;
 import one.nio.net.ConnectionString;
 import one.nio.net.Socket;
 import one.nio.pool.PoolException;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
@@ -82,11 +82,8 @@ public class ShardedHttpApi extends HttpApiBase {
         final String nodePollingHeader = request.getHeader(PROXY_HEADER);
 
         if (nodePollingHeader != null) {
-            final Action<Response> action = getRequestHandler(request, key);
-            if (action == null) {
-                session.sendError(Response.METHOD_NOT_ALLOWED, "Allowed only get, put and delete");
-                return;
-            }
+            final Action<Response> action = getAction(request, session, key);
+            if (action == null) return;
             executeAsync(session, action);
             return;
         }
@@ -114,36 +111,13 @@ public class ShardedHttpApi extends HttpApiBase {
         final CountDownLatch latch = new CountDownLatch(rf.ack);
         LOG.info("Node {} started to poll nodes", topology.getMe());
 
-        for (String node : primaryNodes) {
+        for (final String node : primaryNodes) {
             if (!topology.isMe(node)) {
-                executor.execute(() -> {
-                    try {
-                        final Response response = proxy(request, node);
-                        LOG.info("Received response from node {}", node);
-                        responses.add(response);
-                        latch.countDown();
-                    } catch (IOException e) {
-                        LOG.error("Failed to execute action on node {}", node, e);
-                    } catch (PoolException pe) {
-                        LOG.error("Node unavailable: {}", node);
-                    }
-                });
+                pollNode(request, responses, latch, node);
             } else {
-                final Action<Response> action = getRequestHandler(request, key);
-                if (action == null) {
-                    session.sendError(Response.METHOD_NOT_ALLOWED, "Allowed only get, put and delete");
-                    return;
-                }
-                executor.execute(() -> {
-                    try {
-                        final Response response = action.act();
-                        LOG.info("Received response from coordinator node");
-                        responses.add(response);
-                        latch.countDown();
-                    } catch (IOException e) {
-                        LOG.error("Failed to execute action on coordinator node", e);
-                    }
-                });
+                final Action<Response> action = getAction(request, session, key);
+                if (action == null) return;
+                processLocally(responses, latch, action);
             }
         }
 
@@ -161,7 +135,52 @@ public class ShardedHttpApi extends HttpApiBase {
         processNodesResponses(responses, session, request, rf.ack);
     }
 
-    private Action<Response> getRequestHandler(Request request, ByteBuffer key) {
+    @Nullable
+    private Action<Response> getAction(final Request request,
+                                       final HttpSession session,
+                                       final ByteBuffer key) throws IOException {
+        final Action<Response> action = getRequestHandler(request, key);
+        if (action == null) {
+            session.sendError(Response.METHOD_NOT_ALLOWED, "Allowed only get, put and delete");
+            return null;
+        }
+        return action;
+    }
+
+    private void processLocally(final List<Response> responses,
+                                final CountDownLatch latch,
+                                final Action<Response> action) {
+        executor.execute(() -> {
+            try {
+                final Response response = action.act();
+                LOG.info("Received response from coordinator node");
+                responses.add(response);
+                latch.countDown();
+            } catch (IOException e) {
+                LOG.error("Failed to execute action on coordinator node", e);
+            }
+        });
+    }
+
+    private void pollNode(final Request request,
+                          final List<Response> responses,
+                          final CountDownLatch latch,
+                          final String node) {
+        executor.execute(() -> {
+            try {
+                final Response response = proxy(request, node);
+                LOG.info("Received response from node {}", node);
+                responses.add(response);
+                latch.countDown();
+            } catch (IOException e) {
+                LOG.error("Failed to execute action on node {}", node, e);
+            } catch (PoolException pe) {
+                LOG.error("Node unavailable: {}", node);
+            }
+        });
+    }
+
+    private Action<Response> getRequestHandler(final Request request, final ByteBuffer key) {
         switch (request.getMethod()) {
             case Request.METHOD_GET: {
                 return () -> get(key);
@@ -299,52 +318,5 @@ public class ShardedHttpApi extends HttpApiBase {
     @FunctionalInterface
     interface Action<T> {
         T act() throws IOException;
-    }
-
-    private static class RF {
-        final int ack;
-        final int from;
-
-        private RF(final int ack, final int from) {
-            this.ack = ack;
-            this.from = from;
-        }
-
-        static RF parse(final String rf) {
-            final List<String> splited = Splitter.on('/').splitToList(rf);
-
-            final int ack;
-            try {
-                ack = Integer.parseInt(splited.get(0));
-            } catch (Exception e) {
-                throw new IllegalArgumentException("ack parameter is invalid");
-            }
-
-            final int from;
-            try {
-                from = Integer.parseInt(splited.get(1));
-            } catch (Exception e) {
-                throw new IllegalArgumentException("from parameter is invalid");
-            }
-            if (ack > from) {
-                throw new IllegalArgumentException("ack shouldn't be larger than from");
-            }
-            if (ack <= 0) {
-                throw new IllegalArgumentException("ack should be larger than 0");
-            }
-
-            return new RF(ack, from);
-        }
-
-        static RF def(final int from) {
-            assert from > 0;
-            final int ack = (from / 2) + 1;
-            return new RF(ack, from);
-        }
-
-        @Override
-        public String toString() {
-            return ack + "/" + from;
-        }
     }
 }

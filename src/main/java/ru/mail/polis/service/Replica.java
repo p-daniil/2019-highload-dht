@@ -8,14 +8,14 @@ import java.util.List;
 
 import static ru.mail.polis.service.HttpApiBase.TIMESTAMP_HEADER;
 
-public class Replica {
+public final class Replica {
     private static final Replica ABSENT = new Replica(null, -1, State.ABSENT);
 
     private final byte[] data;
     private final long timestamp;
     private final State state;
 
-    private Replica(byte[] data, long timestamp, State state) {
+    private Replica(final byte[] data, final long timestamp, final State state) {
         this.data = data;
         this.timestamp = timestamp;
         this.state = state;
@@ -70,7 +70,7 @@ public class Replica {
                 .orElseGet(Replica::absent);
     }
 
-    public byte[] getData() {
+    private byte[] getData() {
         if (data == null) {
             throw new IllegalStateException();
         }
