@@ -1,6 +1,11 @@
 package ru.mail.polis.service;
 
-import one.nio.http.*;
+import one.nio.http.HttpServer;
+import one.nio.http.HttpServerConfig;
+import one.nio.http.Path;
+import one.nio.http.Request;
+import one.nio.http.RequestMethod;
+import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.InternalDAO;
@@ -9,7 +14,6 @@ import ru.mail.polis.dao.Value;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.concurrent.Executor;
 
 public abstract class HttpApiBase extends HttpServer implements Service {
     static final String PROXY_HEADER = "Node polling: true";
@@ -73,8 +77,7 @@ public abstract class HttpApiBase extends HttpServer implements Service {
         return response;
     }
 
-    @NotNull
-    protected Response put(final Request request, final ByteBuffer key) {
+    protected Response put(@NotNull final Request request, final ByteBuffer key) {
         dao.upsertValue(key, ByteBuffer.wrap(request.getBody()));
         return new Response(Response.CREATED, Response.EMPTY);
     }
