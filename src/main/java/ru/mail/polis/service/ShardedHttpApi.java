@@ -1,7 +1,12 @@
 package ru.mail.polis.service;
 
 import com.google.common.base.Charsets;
-import one.nio.http.*;
+import com.google.common.base.Splitter;
+import one.nio.http.HttpClient;
+import one.nio.http.HttpException;
+import one.nio.http.HttpSession;
+import one.nio.http.Request;
+import one.nio.http.Response;
 import one.nio.net.ConnectionString;
 import one.nio.net.Socket;
 import one.nio.pool.PoolException;
@@ -12,7 +17,12 @@ import ru.mail.polis.dao.InternalDAO;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -299,18 +309,18 @@ public class ShardedHttpApi extends HttpApiBase {
         }
 
         static RF parse(final String rf) {
-            final String[] splited = rf.split("/");
+            final List<String> splited = Splitter.on('/').splitToList(rf);
 
             final int ack;
             try {
-                ack = Integer.parseInt(splited[0]);
+                ack = Integer.parseInt(splited.get(0));
             } catch (Exception e) {
                 throw new IllegalArgumentException("ack parameter is invalid");
             }
 
             final int from;
             try {
-                from = Integer.parseInt(splited[1]);
+                from = Integer.parseInt(splited.get(1));
             } catch (Exception e) {
                 throw new IllegalArgumentException("from parameter is invalid");
             }
