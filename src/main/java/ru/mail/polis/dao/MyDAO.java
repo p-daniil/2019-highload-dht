@@ -29,7 +29,7 @@ public class MyDAO implements DAO, InternalDAO {
 
     private static final SSTable.Impl SSTABLE_IMPL = FILE_CHANNEL_READ;
     private static final ByteBuffer MIN_BYTE_BUFFER = ByteBuffer.allocate(0);
-    private static final double LOAD_FACTOR = 0.001;
+    private static final double LOAD_FACTOR = 0.1;
     private static final double COMPACTION_THRESHOLD = 10;
 
     private final Path tablesDir;
