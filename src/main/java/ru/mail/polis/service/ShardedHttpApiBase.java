@@ -1,6 +1,10 @@
 package ru.mail.polis.service;
 
-import one.nio.http.*;
+import one.nio.http.HttpClient;
+import one.nio.http.HttpException;
+import one.nio.http.HttpSession;
+import one.nio.http.Request;
+import one.nio.http.Response;
 import one.nio.net.ConnectionString;
 import one.nio.pool.PoolException;
 import org.jetbrains.annotations.Nullable;
@@ -15,8 +19,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 class ShardedHttpApiBase extends HttpApiBase {
     private static final Logger LOG = LoggerFactory.getLogger(ShardedHttpApiBase.class);
@@ -64,9 +71,53 @@ class ShardedHttpApiBase extends HttpApiBase {
         return rf;
     }
 
-    void processLocally(final List<Response> responses,
-                        final CountDownLatch latch,
-                        final Action<Response> action) {
+    void processNodeRequest(final Request request,
+                            final HttpSession session,
+                            final ByteBuffer key) throws IOException {
+        final Action<Response> action = getRequestHandler(request, key);
+        if (action == null) {
+            session.sendError(Response.METHOD_NOT_ALLOWED, "Allowed only get, put and delete");
+        }
+        executeAsync(session, action);
+    }
+
+    Response processClientRequest(final Request request,
+                                  final ByteBuffer key,
+                                  final RF rf) throws IOException {
+        final Set<String> primaryNodes = topology.primaryFor(key, rf.from);
+        final List<Response> responses = new CopyOnWriteArrayList<>();
+        final CountDownLatch latch = new CountDownLatch(rf.ack);
+        LOG.info("Node {} started to poll nodes", topology.getMe());
+
+        for (final String node : primaryNodes) {
+            if (topology.isMe(node)) {
+                final Action<Response> action = getRequestHandler(request, key);
+                if (action == null) {
+                    return new Response(Response.METHOD_NOT_ALLOWED,
+                            "Allowed only get, put and delete".getBytes(StandardCharsets.UTF_8));
+                }
+                processLocally(responses, latch, action);
+            } else {
+                pollNode(request, responses, latch, node);
+            }
+        }
+
+        try {
+            if (!latch.await(500, TimeUnit.MILLISECONDS)) {
+                LOG.error("Node polling timeout: not enough replicas");
+                return new Response("504", "Not Enough Replicas".getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (InterruptedException e) {
+            LOG.error("Node polling was interrupted", e);
+            Thread.currentThread().interrupt();
+        }
+        LOG.info("Received {} responses from nodes. Process them.", rf.ack);
+        return processNodesResponses(responses, request, rf.ack);
+    }
+
+    private void processLocally(final List<Response> responses,
+                                final CountDownLatch latch,
+                                final Action<Response> action) {
         executor.execute(() -> {
             try {
                 final Response response = action.act();
@@ -79,10 +130,10 @@ class ShardedHttpApiBase extends HttpApiBase {
         });
     }
 
-    void pollNode(final Request request,
-                  final List<Response> responses,
-                  final CountDownLatch latch,
-                  final String node) {
+    private void pollNode(final Request request,
+                          final List<Response> responses,
+                          final CountDownLatch latch,
+                          final String node) {
         executor.execute(() -> {
             try {
                 final Response response = proxy(request, node);
@@ -97,7 +148,7 @@ class ShardedHttpApiBase extends HttpApiBase {
         });
     }
 
-    Action<Response> getRequestHandler(final Request request, final ByteBuffer key) {
+    private Action<Response> getRequestHandler(final Request request, final ByteBuffer key) {
         switch (request.getMethod()) {
             case Request.METHOD_GET: {
                 return () -> get(key);
@@ -114,10 +165,9 @@ class ShardedHttpApiBase extends HttpApiBase {
         }
     }
 
-    Response processNodesResponses(final List<Response> nodesResponses,
-                                   final HttpSession session,
-                                   final Request request,
-                                   final int ack) throws IOException {
+    private Response processNodesResponses(final List<Response> nodesResponses,
+                                           final Request request,
+                                           final int ack) throws IOException {
         if (nodesResponses.size() < ack) {
             LOG.info("Not enough responses received");
             return new Response("504", "Not Enough Replicas".getBytes(StandardCharsets.UTF_8));
@@ -129,19 +179,20 @@ class ShardedHttpApiBase extends HttpApiBase {
                 for (int i = 0; i < ack; i++) {
                     replicas.add(Replica.fromResponse(nodesResponses.get(i)));
                 }
-                LOG.info("Sended response to client on GET");
+                LOG.info("Send response to client on GET");
                 return Replica.toResponse(Replica.merge(replicas));
             }
             case Request.METHOD_PUT: {
-                LOG.info("Successfully send response to client on PUT request");
+                LOG.info("Send response to client on PUT request");
                 return new Response(Response.CREATED, Response.EMPTY);
             }
             case Request.METHOD_DELETE: {
-                LOG.info("Successfully send response to client on DELETE request");
+                LOG.info("Send response to client on DELETE request");
                 return new Response(Response.ACCEPTED, Response.EMPTY);
             }
             default: {
-                return new Response(Response.METHOD_NOT_ALLOWED, "Method not allowed".getBytes(StandardCharsets.UTF_8));
+                return new Response(Response.METHOD_NOT_ALLOWED,
+                        "Method not allowed".getBytes(StandardCharsets.UTF_8));
             }
         }
     }
