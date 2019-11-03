@@ -12,6 +12,7 @@ import ru.mail.polis.dao.InternalDAO;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -59,8 +60,10 @@ public class ShardedHttpApi extends ShardedHttpApiBase {
         final String nodePollingHeader = request.getHeader(PROXY_HEADER);
 
         if (nodePollingHeader != null) {
-            final Action<Response> action = getAction(request, session, key);
-            if (action == null) return;
+            final Action<Response> action = getRequestHandler(request, key);
+            if (action == null) {
+                session.sendError(Response.METHOD_NOT_ALLOWED, "Allowed only get, put and delete");
+            }
             executeAsync(session, action);
             return;
         }
@@ -68,34 +71,37 @@ public class ShardedHttpApi extends ShardedHttpApiBase {
         final RF rf = getRf(request, session);
         if (rf == null) return;
         LOG.info("New client request with RF {}", rf);
+        executeAsync(session, () -> {
+            final Set<String> primaryNodes = topology.primaryFor(key, rf.from);
+            final List<Response> responses = new CopyOnWriteArrayList<>();
+            final CountDownLatch latch = new CountDownLatch(rf.ack);
+            LOG.info("Node {} started to poll nodes", topology.getMe());
 
-        final Set<String> primaryNodes = topology.primaryFor(key, rf.from);
-        final List<Response> responses = new CopyOnWriteArrayList<>();
-        final CountDownLatch latch = new CountDownLatch(rf.ack);
-        LOG.info("Node {} started to poll nodes", topology.getMe());
-
-        for (final String node : primaryNodes) {
-            if (topology.isMe(node)) {
-                final Action<Response> action = getAction(request, session, key);
-                if (action == null) return;
-                processLocally(responses, latch, action);
-            } else {
-                pollNode(request, responses, latch, node);
+            for (final String node : primaryNodes) {
+                if (topology.isMe(node)) {
+                    final Action<Response> action = getRequestHandler(request, key);
+                    if (action == null) {
+                        return new Response(Response.METHOD_NOT_ALLOWED, "Allowed only get, put and delete".getBytes(StandardCharsets.UTF_8));
+                    }
+                    processLocally(responses, latch, action);
+                } else {
+                    pollNode(request, responses, latch, node);
+                }
             }
-        }
 
-        try {
-            if (!latch.await(500, TimeUnit.MILLISECONDS)) {
-                LOG.error("Node polling timeout: not enough replicas");
-                session.sendError("504", "Not Enough Replicas");
-                return;
+            try {
+                if (!latch.await(500, TimeUnit.MILLISECONDS)) {
+                    LOG.error("Node polling timeout: not enough replicas");
+                    return new Response("504", "Not Enough Replicas".getBytes(StandardCharsets.UTF_8));
+                }
+            } catch (InterruptedException e) {
+                LOG.error("Node polling was interrupted", e);
+                Thread.currentThread().interrupt();
             }
-        } catch (InterruptedException e) {
-            LOG.error("Node polling was interrupted", e);
-            Thread.currentThread().interrupt();
-        }
-        LOG.info("Received {} responses from nodes. Process them.", rf.ack);
-        processNodesResponses(responses, session, request, rf.ack);
+            LOG.info("Received {} responses from nodes. Process them.", rf.ack);
+            return processNodesResponses(responses, session, request, rf.ack);
+        });
+
     }
 
     /**

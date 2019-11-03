@@ -1,10 +1,6 @@
 package ru.mail.polis.service;
 
-import one.nio.http.HttpClient;
-import one.nio.http.HttpException;
-import one.nio.http.HttpSession;
-import one.nio.http.Request;
-import one.nio.http.Response;
+import one.nio.http.*;
 import one.nio.net.ConnectionString;
 import one.nio.pool.PoolException;
 import org.jetbrains.annotations.Nullable;
@@ -14,6 +10,7 @@ import ru.mail.polis.dao.InternalDAO;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,7 +21,7 @@ import java.util.concurrent.Executor;
 class ShardedHttpApiBase extends HttpApiBase {
     private static final Logger LOG = LoggerFactory.getLogger(ShardedHttpApiBase.class);
 
-    private final Executor executor;
+    final Executor executor;
     final Topology<String> topology;
     private final Map<String, HttpClient> pool;
 
@@ -67,18 +64,6 @@ class ShardedHttpApiBase extends HttpApiBase {
         return rf;
     }
 
-    @Nullable
-    Action<Response> getAction(final Request request,
-                               final HttpSession session,
-                               final ByteBuffer key) throws IOException {
-        final Action<Response> action = getRequestHandler(request, key);
-        if (action == null) {
-            session.sendError(Response.METHOD_NOT_ALLOWED, "Allowed only get, put and delete");
-            return null;
-        }
-        return action;
-    }
-
     void processLocally(final List<Response> responses,
                         final CountDownLatch latch,
                         final Action<Response> action) {
@@ -112,7 +97,7 @@ class ShardedHttpApiBase extends HttpApiBase {
         });
     }
 
-    private Action<Response> getRequestHandler(final Request request, final ByteBuffer key) {
+    Action<Response> getRequestHandler(final Request request, final ByteBuffer key) {
         switch (request.getMethod()) {
             case Request.METHOD_GET: {
                 return () -> get(key);
@@ -129,39 +114,34 @@ class ShardedHttpApiBase extends HttpApiBase {
         }
     }
 
-    void processNodesResponses(final List<Response> nodesResponses,
-                               final HttpSession session,
-                               final Request request,
-                               final int ack) throws IOException {
+    Response processNodesResponses(final List<Response> nodesResponses,
+                                   final HttpSession session,
+                                   final Request request,
+                                   final int ack) throws IOException {
         if (nodesResponses.size() < ack) {
             LOG.info("Not enough responses received");
-            session.sendError("504", "Not Enough Replicas");
+            return new Response("504", "Not Enough Replicas".getBytes(StandardCharsets.UTF_8));
         }
         switch (request.getMethod()) {
             case Request.METHOD_GET: {
-                executeAsync(session, () -> {
-                    final List<Replica> replicas = new ArrayList<>();
-                    for (int i = 0; i < ack; i++) {
-                        replicas.add(Replica.fromResponse(nodesResponses.get(i)));
-                    }
-                    return Replica.toResponse(Replica.merge(replicas));
-                });
+
+                final List<Replica> replicas = new ArrayList<>();
+                for (int i = 0; i < ack; i++) {
+                    replicas.add(Replica.fromResponse(nodesResponses.get(i)));
+                }
                 LOG.info("Sended response to client on GET");
-                break;
+                return Replica.toResponse(Replica.merge(replicas));
             }
             case Request.METHOD_PUT: {
-                executeAsync(session, () -> new Response(Response.CREATED, Response.EMPTY));
                 LOG.info("Successfully send response to client on PUT request");
-                break;
+                return new Response(Response.CREATED, Response.EMPTY);
             }
             case Request.METHOD_DELETE: {
-                executeAsync(session, () -> new Response(Response.ACCEPTED, Response.EMPTY));
                 LOG.info("Successfully send response to client on DELETE request");
-                break;
+                return new Response(Response.ACCEPTED, Response.EMPTY);
             }
             default: {
-                session.sendError(Response.METHOD_NOT_ALLOWED, "Method not allowed");
-                break;
+                return new Response(Response.METHOD_NOT_ALLOWED, "Method not allowed".getBytes(StandardCharsets.UTF_8));
             }
         }
     }
