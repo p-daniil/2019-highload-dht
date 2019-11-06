@@ -1,6 +1,6 @@
 <?xml version="1.0" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg version="1.1" width="1200" height="134" onload="init(evt)" viewBox="0 0 1200 134" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<svg version="1.1" width="1200" height="118" onload="init(evt)" viewBox="0 0 1200 118" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <style type="text/css">
 	text { font-family:Verdana; font-size:12px; fill:rgb(0,0,0); }
 	#search { opacity:0.1; cursor:pointer; }
@@ -328,346 +328,30 @@
 </script>
 <rect x="0" y="0" width="100%" height="100%" fill="rgb(240,240,220)"/>
 <text id="title" x="600" y="24">Flame Graph</text>
-<text id="details" x="10" y="117"> </text>
+<text id="details" x="10" y="101"> </text>
 <text id="unzoom" x="10" y="24" class="hide">Reset Zoom</text>
 <text id="search" x="1090" y="24">Search</text>
-<text id="matched" x="1090" y="117"> </text>
+<text id="matched" x="1090" y="101"> </text>
 <g id="frames">
 <g>
-<title>all (93,653 samples, 100.00%)</title><rect x="10.0" y="83.0" width="1180.0" height="15" fill="#e66060" rx="2" ry="2"/>
-<text x="13.0" y="94.0">all</text>
+<title>all (55,997 samples, 100.00%)</title><rect x="10.0" y="67.0" width="1180.0" height="15" fill="#ee6b6b" rx="2" ry="2"/>
+<text x="13.0" y="78.0">all</text>
 </g>
 <g>
-<title>[NIO Selector #0 tid=8126] (763 samples, 0.81%)</title><rect x="10.0" y="67.0" width="9.6" height="15" fill="#f37272" rx="2" ry="2"/>
-<text x="13.0" y="78.0"></text>
+<title>[not_walkable] (55,997 samples, 100.00%)</title><rect x="10.0" y="51.0" width="1180.0" height="15" fill="#f37272" rx="2" ry="2"/>
+<text x="13.0" y="62.0">[not_walkable]</text>
 </g>
 <g>
-<title>[not_walkable] (763 samples, 0.81%)</title><rect x="10.0" y="51.0" width="9.6" height="15" fill="#ea6666" rx="2" ry="2"/>
-<text x="13.0" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (763 samples, 0.81%)</title><rect x="10.0" y="35.0" width="9.6" height="15" fill="#65d3d3" rx="2" ry="2"/>
+<title>java.lang.Object (379 samples, 0.68%)</title><rect x="10.0" y="35.0" width="8.0" height="15" fill="#52c0c0" rx="2" ry="2"/>
 <text x="13.0" y="46.0"></text>
 </g>
 <g>
-<title>[NIO Selector #1 tid=8127] (754 samples, 0.81%)</title><rect x="19.6" y="67.0" width="9.5" height="15" fill="#e96565" rx="2" ry="2"/>
-<text x="22.6" y="78.0"></text>
+<title>ru.mail.polis.service.ShardedHttpApi (53,487 samples, 95.52%)</title><rect x="18.0" y="35.0" width="1127.1" height="15" fill="#51bfbf" rx="2" ry="2"/>
+<text x="21.0" y="46.0">ru.mail.polis.service.ShardedHttpApi</text>
 </g>
 <g>
-<title>[not_walkable] (754 samples, 0.81%)</title><rect x="19.6" y="51.0" width="9.5" height="15" fill="#fe8181" rx="2" ry="2"/>
-<text x="22.6" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (754 samples, 0.81%)</title><rect x="19.6" y="35.0" width="9.5" height="15" fill="#5ac8c8" rx="2" ry="2"/>
-<text x="22.6" y="46.0"></text>
-</g>
-<g>
-<title>[NIO Selector #2 tid=8128] (803 samples, 0.86%)</title><rect x="29.1" y="67.0" width="10.1" height="15" fill="#ec6969" rx="2" ry="2"/>
-<text x="32.1" y="78.0"></text>
-</g>
-<g>
-<title>[not_walkable] (803 samples, 0.86%)</title><rect x="29.1" y="51.0" width="10.1" height="15" fill="#e96565" rx="2" ry="2"/>
-<text x="32.1" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (803 samples, 0.86%)</title><rect x="29.1" y="35.0" width="10.1" height="15" fill="#52c0c0" rx="2" ry="2"/>
-<text x="32.1" y="46.0"></text>
-</g>
-<g>
-<title>[NIO Selector #3 tid=8129] (802 samples, 0.86%)</title><rect x="39.2" y="67.0" width="10.1" height="15" fill="#e15a5a" rx="2" ry="2"/>
-<text x="42.2" y="78.0"></text>
-</g>
-<g>
-<title>[not_walkable] (802 samples, 0.86%)</title><rect x="39.2" y="51.0" width="10.1" height="15" fill="#f27070" rx="2" ry="2"/>
-<text x="42.2" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (802 samples, 0.86%)</title><rect x="39.2" y="35.0" width="10.1" height="15" fill="#5dcbcb" rx="2" ry="2"/>
-<text x="42.2" y="46.0"></text>
-</g>
-<g>
-<title>[worker-0 tid=8183] (11,269 samples, 12.03%)</title><rect x="49.3" y="67.0" width="142.0" height="15" fill="#e86464" rx="2" ry="2"/>
-<text x="52.3" y="78.0">[worker-0 tid=8183]</text>
-</g>
-<g>
-<title>[not_walkable] (11,269 samples, 12.03%)</title><rect x="49.3" y="51.0" width="142.0" height="15" fill="#f37272" rx="2" ry="2"/>
-<text x="52.3" y="62.0">[not_walkable]</text>
-</g>
-<g>
-<title>java.lang.Object (29 samples, 0.03%)</title><rect x="49.3" y="35.0" width="0.4" height="15" fill="#5ac8c8" rx="2" ry="2"/>
-<text x="52.3" y="46.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.ShardedHttpApi (11,240 samples, 12.00%)</title><rect x="49.7" y="35.0" width="141.6" height="15" fill="#63d1d1" rx="2" ry="2"/>
-<text x="52.7" y="46.0">ru.mail.polis.serv..</text>
-</g>
-<g>
-<title>[worker-0 tid=8191] (29 samples, 0.03%)</title><rect x="191.3" y="67.0" width="0.4" height="15" fill="#e25c5c" rx="2" ry="2"/>
-<text x="194.3" y="78.0"></text>
-</g>
-<g>
-<title>[not_walkable] (29 samples, 0.03%)</title><rect x="191.3" y="51.0" width="0.4" height="15" fill="#e15a5a" rx="2" ry="2"/>
-<text x="194.3" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (29 samples, 0.03%)</title><rect x="191.3" y="35.0" width="0.4" height="15" fill="#5ecccc" rx="2" ry="2"/>
-<text x="194.3" y="46.0"></text>
-</g>
-<g>
-<title>[worker-0 tid=8192] (50 samples, 0.05%)</title><rect x="191.7" y="67.0" width="0.6" height="15" fill="#f16f6f" rx="2" ry="2"/>
-<text x="194.7" y="78.0"></text>
-</g>
-<g>
-<title>[not_walkable] (50 samples, 0.05%)</title><rect x="191.7" y="51.0" width="0.6" height="15" fill="#ef6d6d" rx="2" ry="2"/>
-<text x="194.7" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (50 samples, 0.05%)</title><rect x="191.7" y="35.0" width="0.6" height="15" fill="#6cdada" rx="2" ry="2"/>
-<text x="194.7" y="46.0"></text>
-</g>
-<g>
-<title>[worker-1 tid=8184] (11,242 samples, 12.00%)</title><rect x="192.3" y="67.0" width="141.7" height="15" fill="#f06e6e" rx="2" ry="2"/>
-<text x="195.3" y="78.0">[worker-1 tid=8184]</text>
-</g>
-<g>
-<title>[not_walkable] (11,242 samples, 12.00%)</title><rect x="192.3" y="51.0" width="141.7" height="15" fill="#fd7f7f" rx="2" ry="2"/>
-<text x="195.3" y="62.0">[not_walkable]</text>
-</g>
-<g>
-<title>java.lang.Object (58 samples, 0.06%)</title><rect x="192.3" y="35.0" width="0.8" height="15" fill="#5fcdcd" rx="2" ry="2"/>
-<text x="195.3" y="46.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.ShardedHttpApi (11,184 samples, 11.94%)</title><rect x="193.1" y="35.0" width="140.9" height="15" fill="#5ccaca" rx="2" ry="2"/>
-<text x="196.1" y="46.0">ru.mail.polis.serv..</text>
-</g>
-<g>
-<title>[worker-1 tid=8193] (24 samples, 0.03%)</title><rect x="334.0" y="67.0" width="0.3" height="15" fill="#f27070" rx="2" ry="2"/>
-<text x="337.0" y="78.0"></text>
-</g>
-<g>
-<title>[not_walkable] (24 samples, 0.03%)</title><rect x="334.0" y="51.0" width="0.3" height="15" fill="#e96565" rx="2" ry="2"/>
-<text x="337.0" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (24 samples, 0.03%)</title><rect x="334.0" y="35.0" width="0.3" height="15" fill="#60cece" rx="2" ry="2"/>
-<text x="337.0" y="46.0"></text>
-</g>
-<g>
-<title>[worker-1 tid=8194] (49 samples, 0.05%)</title><rect x="334.3" y="67.0" width="0.6" height="15" fill="#ee6b6b" rx="2" ry="2"/>
-<text x="337.3" y="78.0"></text>
-</g>
-<g>
-<title>[not_walkable] (49 samples, 0.05%)</title><rect x="334.3" y="51.0" width="0.6" height="15" fill="#ee6c6c" rx="2" ry="2"/>
-<text x="337.3" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (49 samples, 0.05%)</title><rect x="334.3" y="35.0" width="0.6" height="15" fill="#54c2c2" rx="2" ry="2"/>
-<text x="337.3" y="46.0"></text>
-</g>
-<g>
-<title>[worker-2 tid=8185] (11,220 samples, 11.98%)</title><rect x="334.9" y="67.0" width="141.4" height="15" fill="#f77777" rx="2" ry="2"/>
-<text x="337.9" y="78.0">[worker-2 tid=8185]</text>
-</g>
-<g>
-<title>[not_walkable] (11,220 samples, 11.98%)</title><rect x="334.9" y="51.0" width="141.4" height="15" fill="#e66161" rx="2" ry="2"/>
-<text x="337.9" y="62.0">[not_walkable]</text>
-</g>
-<g>
-<title>java.lang.Object (39 samples, 0.04%)</title><rect x="334.9" y="35.0" width="0.5" height="15" fill="#5ccaca" rx="2" ry="2"/>
-<text x="337.9" y="46.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.ShardedHttpApi (11,181 samples, 11.94%)</title><rect x="335.4" y="35.0" width="140.9" height="15" fill="#66d4d4" rx="2" ry="2"/>
-<text x="338.4" y="46.0">ru.mail.polis.serv..</text>
-</g>
-<g>
-<title>[worker-2 tid=8196] (60 samples, 0.06%)</title><rect x="476.5" y="67.0" width="0.8" height="15" fill="#f06f6f" rx="2" ry="2"/>
-<text x="479.5" y="78.0"></text>
-</g>
-<g>
-<title>[not_walkable] (60 samples, 0.06%)</title><rect x="476.5" y="51.0" width="0.8" height="15" fill="#f97a7a" rx="2" ry="2"/>
-<text x="479.5" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (60 samples, 0.06%)</title><rect x="476.5" y="35.0" width="0.8" height="15" fill="#50bebe" rx="2" ry="2"/>
-<text x="479.5" y="46.0"></text>
-</g>
-<g>
-<title>[worker-3 tid=8186] (11,292 samples, 12.06%)</title><rect x="477.3" y="67.0" width="142.2" height="15" fill="#f37272" rx="2" ry="2"/>
-<text x="480.3" y="78.0">[worker-3 tid=8186]</text>
-</g>
-<g>
-<title>[not_walkable] (11,292 samples, 12.06%)</title><rect x="477.3" y="51.0" width="142.2" height="15" fill="#fa7b7b" rx="2" ry="2"/>
-<text x="480.3" y="62.0">[not_walkable]</text>
-</g>
-<g>
-<title>java.lang.Object (39 samples, 0.04%)</title><rect x="477.3" y="35.0" width="0.5" height="15" fill="#62d0d0" rx="2" ry="2"/>
-<text x="480.3" y="46.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.ShardedHttpApi (11,253 samples, 12.02%)</title><rect x="477.8" y="35.0" width="141.7" height="15" fill="#51bfbf" rx="2" ry="2"/>
-<text x="480.8" y="46.0">ru.mail.polis.serv..</text>
-</g>
-<g>
-<title>[worker-3 tid=8198] (53 samples, 0.06%)</title><rect x="619.7" y="67.0" width="0.7" height="15" fill="#e45e5e" rx="2" ry="2"/>
-<text x="622.7" y="78.0"></text>
-</g>
-<g>
-<title>[not_walkable] (53 samples, 0.06%)</title><rect x="619.7" y="51.0" width="0.7" height="15" fill="#e76262" rx="2" ry="2"/>
-<text x="622.7" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (53 samples, 0.06%)</title><rect x="619.7" y="35.0" width="0.7" height="15" fill="#5bc9c9" rx="2" ry="2"/>
-<text x="622.7" y="46.0"></text>
-</g>
-<g>
-<title>[worker-4 tid=8188] (11,095 samples, 11.85%)</title><rect x="620.4" y="67.0" width="139.8" height="15" fill="#f77878" rx="2" ry="2"/>
-<text x="623.4" y="78.0">[worker-4 tid=8188]</text>
-</g>
-<g>
-<title>[not_walkable] (11,095 samples, 11.85%)</title><rect x="620.4" y="51.0" width="139.8" height="15" fill="#e96464" rx="2" ry="2"/>
-<text x="623.4" y="62.0">[not_walkable]</text>
-</g>
-<g>
-<title>java.lang.Object (84 samples, 0.09%)</title><rect x="620.4" y="35.0" width="1.0" height="15" fill="#5ccaca" rx="2" ry="2"/>
-<text x="623.4" y="46.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.ShardedHttpApi (11,011 samples, 11.76%)</title><rect x="621.4" y="35.0" width="138.8" height="15" fill="#57c5c5" rx="2" ry="2"/>
-<text x="624.4" y="46.0">ru.mail.polis.ser..</text>
-</g>
-<g>
-<title>[worker-4 tid=8199] (48 samples, 0.05%)</title><rect x="760.2" y="67.0" width="0.6" height="15" fill="#f97a7a" rx="2" ry="2"/>
-<text x="763.2" y="78.0"></text>
-</g>
-<g>
-<title>[not_walkable] (48 samples, 0.05%)</title><rect x="760.2" y="51.0" width="0.6" height="15" fill="#fb7d7d" rx="2" ry="2"/>
-<text x="763.2" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (48 samples, 0.05%)</title><rect x="760.2" y="35.0" width="0.6" height="15" fill="#56c4c4" rx="2" ry="2"/>
-<text x="763.2" y="46.0"></text>
-</g>
-<g>
-<title>[worker-4 tid=8200] (26 samples, 0.03%)</title><rect x="760.8" y="67.0" width="0.3" height="15" fill="#ea6666" rx="2" ry="2"/>
-<text x="763.8" y="78.0"></text>
-</g>
-<g>
-<title>[not_walkable] (26 samples, 0.03%)</title><rect x="760.8" y="51.0" width="0.3" height="15" fill="#fa7b7b" rx="2" ry="2"/>
-<text x="763.8" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (26 samples, 0.03%)</title><rect x="760.8" y="35.0" width="0.3" height="15" fill="#65d3d3" rx="2" ry="2"/>
-<text x="763.8" y="46.0"></text>
-</g>
-<g>
-<title>[worker-5 tid=8187] (11,067 samples, 11.82%)</title><rect x="761.1" y="67.0" width="139.4" height="15" fill="#f67777" rx="2" ry="2"/>
-<text x="764.1" y="78.0">[worker-5 tid=8187]</text>
-</g>
-<g>
-<title>[not_walkable] (11,067 samples, 11.82%)</title><rect x="761.1" y="51.0" width="139.4" height="15" fill="#ed6a6a" rx="2" ry="2"/>
-<text x="764.1" y="62.0">[not_walkable]</text>
-</g>
-<g>
-<title>java.lang.Object (31 samples, 0.03%)</title><rect x="761.1" y="35.0" width="0.4" height="15" fill="#6ddbdb" rx="2" ry="2"/>
-<text x="764.1" y="46.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.ShardedHttpApi (11,036 samples, 11.78%)</title><rect x="761.5" y="35.0" width="139.0" height="15" fill="#58c6c6" rx="2" ry="2"/>
-<text x="764.5" y="46.0">ru.mail.polis.ser..</text>
-</g>
-<g>
-<title>[worker-5 tid=8201] (59 samples, 0.06%)</title><rect x="900.5" y="67.0" width="0.8" height="15" fill="#fa7b7b" rx="2" ry="2"/>
-<text x="903.5" y="78.0"></text>
-</g>
-<g>
-<title>[not_walkable] (59 samples, 0.06%)</title><rect x="900.5" y="51.0" width="0.8" height="15" fill="#ee6b6b" rx="2" ry="2"/>
-<text x="903.5" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (59 samples, 0.06%)</title><rect x="900.5" y="35.0" width="0.8" height="15" fill="#5ccaca" rx="2" ry="2"/>
-<text x="903.5" y="46.0"></text>
-</g>
-<g>
-<title>[worker-6 tid=8189] (11,310 samples, 12.08%)</title><rect x="901.5" y="67.0" width="142.5" height="15" fill="#f27171" rx="2" ry="2"/>
-<text x="904.5" y="78.0">[worker-6 tid=8189]</text>
-</g>
-<g>
-<title>[not_walkable] (11,310 samples, 12.08%)</title><rect x="901.5" y="51.0" width="142.5" height="15" fill="#f37373" rx="2" ry="2"/>
-<text x="904.5" y="62.0">[not_walkable]</text>
-</g>
-<g>
-<title>java.lang.Object (30 samples, 0.03%)</title><rect x="901.5" y="35.0" width="0.4" height="15" fill="#69d7d7" rx="2" ry="2"/>
-<text x="904.5" y="46.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.ShardedHttpApi (11,280 samples, 12.04%)</title><rect x="901.9" y="35.0" width="142.1" height="15" fill="#59c7c7" rx="2" ry="2"/>
-<text x="904.9" y="46.0">ru.mail.polis.serv..</text>
-</g>
-<g>
-<title>[worker-6 tid=8203] (44 samples, 0.05%)</title><rect x="1044.0" y="67.0" width="0.6" height="15" fill="#e56060" rx="2" ry="2"/>
-<text x="1047.0" y="78.0"></text>
-</g>
-<g>
-<title>[not_walkable] (44 samples, 0.05%)</title><rect x="1044.0" y="51.0" width="0.6" height="15" fill="#f57575" rx="2" ry="2"/>
-<text x="1047.0" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (44 samples, 0.05%)</title><rect x="1044.0" y="35.0" width="0.6" height="15" fill="#5ac8c8" rx="2" ry="2"/>
-<text x="1047.0" y="46.0"></text>
-</g>
-<g>
-<title>[worker-6 tid=8205] (26 samples, 0.03%)</title><rect x="1044.6" y="67.0" width="0.3" height="15" fill="#f77878" rx="2" ry="2"/>
-<text x="1047.6" y="78.0"></text>
-</g>
-<g>
-<title>[not_walkable] (26 samples, 0.03%)</title><rect x="1044.6" y="51.0" width="0.3" height="15" fill="#f06f6f" rx="2" ry="2"/>
-<text x="1047.6" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (26 samples, 0.03%)</title><rect x="1044.6" y="35.0" width="0.3" height="15" fill="#6cdada" rx="2" ry="2"/>
-<text x="1047.6" y="46.0"></text>
-</g>
-<g>
-<title>[worker-7 tid=8190] (11,436 samples, 12.21%)</title><rect x="1044.9" y="67.0" width="144.1" height="15" fill="#f97a7a" rx="2" ry="2"/>
-<text x="1047.9" y="78.0">[worker-7 tid=8190]</text>
-</g>
-<g>
-<title>[not_walkable] (11,436 samples, 12.21%)</title><rect x="1044.9" y="51.0" width="144.1" height="15" fill="#f37373" rx="2" ry="2"/>
-<text x="1047.9" y="62.0">[not_walkable]</text>
-</g>
-<g>
-<title>java.lang.Object (64 samples, 0.07%)</title><rect x="1044.9" y="35.0" width="0.8" height="15" fill="#55c3c3" rx="2" ry="2"/>
-<text x="1047.9" y="46.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.ShardedHttpApi (11,372 samples, 12.14%)</title><rect x="1045.7" y="35.0" width="143.3" height="15" fill="#56c4c4" rx="2" ry="2"/>
-<text x="1048.7" y="46.0">ru.mail.polis.serv..</text>
-</g>
-<g>
-<title>[worker-7 tid=8204] (55 samples, 0.06%)</title><rect x="1189.0" y="67.0" width="0.7" height="15" fill="#ec6969" rx="2" ry="2"/>
-<text x="1192.0" y="78.0"></text>
-</g>
-<g>
-<title>[not_walkable] (55 samples, 0.06%)</title><rect x="1189.0" y="51.0" width="0.7" height="15" fill="#ee6b6b" rx="2" ry="2"/>
-<text x="1192.0" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (55 samples, 0.06%)</title><rect x="1189.0" y="35.0" width="0.7" height="15" fill="#62d0d0" rx="2" ry="2"/>
-<text x="1192.0" y="46.0"></text>
-</g>
-<g>
-<title>[worker-7 tid=8206] (26 samples, 0.03%)</title><rect x="1189.7" y="67.0" width="0.3" height="15" fill="#f47373" rx="2" ry="2"/>
-<text x="1192.7" y="78.0"></text>
-</g>
-<g>
-<title>[not_walkable] (26 samples, 0.03%)</title><rect x="1189.7" y="51.0" width="0.3" height="15" fill="#e86464" rx="2" ry="2"/>
-<text x="1192.7" y="62.0"></text>
-</g>
-<g>
-<title>ru.mail.polis.service.StorageSession (26 samples, 0.03%)</title><rect x="1189.7" y="35.0" width="0.3" height="15" fill="#5fcdcd" rx="2" ry="2"/>
-<text x="1192.7" y="46.0"></text>
+<title>ru.mail.polis.service.StorageSession (2,125 samples, 3.79%)</title><rect x="1145.1" y="35.0" width="44.8" height="15" fill="#6ddbdb" rx="2" ry="2"/>
+<text x="1148.1" y="46.0">ru.m..</text>
 </g>
 </g>
 </svg>

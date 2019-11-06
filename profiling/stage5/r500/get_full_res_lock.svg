@@ -334,24 +334,28 @@
 <text id="matched" x="1090" y="101"> </text>
 <g id="frames">
 <g>
-<title>all (55,232 samples, 100.00%)</title><rect x="10.0" y="67.0" width="1180.0" height="15" fill="#ed6a6a" rx="2" ry="2"/>
+<title>all (63,988 samples, 100.00%)</title><rect x="10.0" y="67.0" width="1180.0" height="15" fill="#ed6a6a" rx="2" ry="2"/>
 <text x="13.0" y="78.0">all</text>
 </g>
 <g>
-<title>[not_walkable] (55,232 samples, 100.00%)</title><rect x="10.0" y="51.0" width="1180.0" height="15" fill="#ea6767" rx="2" ry="2"/>
+<title>[not_walkable] (63,988 samples, 100.00%)</title><rect x="10.0" y="51.0" width="1180.0" height="15" fill="#f17070" rx="2" ry="2"/>
 <text x="13.0" y="62.0">[not_walkable]</text>
 </g>
 <g>
-<title>java.lang.Object (384 samples, 0.70%)</title><rect x="10.0" y="35.0" width="8.2" height="15" fill="#54c2c2" rx="2" ry="2"/>
-<text x="13.0" y="46.0"></text>
+<title>java.lang.Object (14,453 samples, 22.59%)</title><rect x="10.0" y="35.0" width="266.5" height="15" fill="#52c0c0" rx="2" ry="2"/>
+<text x="13.0" y="46.0">java.lang.Object</text>
 </g>
 <g>
-<title>ru.mail.polis.service.ShardedHttpApi (52,876 samples, 95.73%)</title><rect x="18.2" y="35.0" width="1129.7" height="15" fill="#57c5c5" rx="2" ry="2"/>
-<text x="21.2" y="46.0">ru.mail.polis.service.ShardedHttpApi</text>
+<title>ru.mail.polis.service.ShardedHttpApi (48,115 samples, 75.19%)</title><rect x="276.5" y="35.0" width="887.3" height="15" fill="#60cece" rx="2" ry="2"/>
+<text x="279.5" y="46.0">ru.mail.polis.service.ShardedHttpApi</text>
 </g>
 <g>
-<title>ru.mail.polis.service.StorageSession (1,964 samples, 3.56%)</title><rect x="1147.9" y="35.0" width="41.9" height="15" fill="#56c4c4" rx="2" ry="2"/>
-<text x="1150.9" y="46.0">ru...</text>
+<title>ru.mail.polis.service.StorageSession (1,322 samples, 2.07%)</title><rect x="1163.8" y="35.0" width="24.4" height="15" fill="#53c1c1" rx="2" ry="2"/>
+<text x="1166.8" y="46.0">r..</text>
+</g>
+<g>
+<title>sun.nio.ch.NativeThreadSet (98 samples, 0.15%)</title><rect x="1188.2" y="35.0" width="1.8" height="15" fill="#60cece" rx="2" ry="2"/>
+<text x="1191.2" y="46.0"></text>
 </g>
 </g>
 </svg>
