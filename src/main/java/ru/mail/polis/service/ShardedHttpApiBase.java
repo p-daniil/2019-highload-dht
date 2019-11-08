@@ -25,11 +25,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
-class ShardedHttpApiBase extends HttpApiBase {
+abstract class ShardedHttpApiBase extends HttpApiBase {
     private static final Logger LOG = LoggerFactory.getLogger(ShardedHttpApiBase.class);
 
-    final Executor executor;
-    final Topology<String> topology;
+    private final Executor executor;
+    private final Topology<String> topology;
     private final Map<String, HttpClient> pool;
 
     ShardedHttpApiBase(final int port,
@@ -89,16 +89,17 @@ class ShardedHttpApiBase extends HttpApiBase {
         final CountDownLatch latch = new CountDownLatch(rf.ack);
         LOG.info("Node {} started to poll nodes", topology.getMe());
 
+        final Action<Response> action = getRequestHandler(request, key);
+        if (action == null) {
+            return new Response(Response.METHOD_NOT_ALLOWED,
+                    "Allowed only get, put and delete".getBytes(StandardCharsets.UTF_8));
+        }
+
         for (final String node : primaryNodes) {
             if (topology.isMe(node)) {
-                final Action<Response> action = getRequestHandler(request, key);
-                if (action == null) {
-                    return new Response(Response.METHOD_NOT_ALLOWED,
-                            "Allowed only get, put and delete".getBytes(StandardCharsets.UTF_8));
-                }
                 processLocally(responses, latch, action);
             } else {
-                pollNode(request, responses, latch, node);
+                pollNode(responses, latch, request, node);
             }
         }
 
@@ -125,14 +126,14 @@ class ShardedHttpApiBase extends HttpApiBase {
                 responses.add(response);
                 latch.countDown();
             } catch (IOException e) {
-                LOG.error("Failed to execute action on coordinator node", e);
+                LOG.error("Failed to handle request on coordinator node", e);
             }
         });
     }
 
-    private void pollNode(final Request request,
-                          final List<Response> responses,
+    private void pollNode(final List<Response> responses,
                           final CountDownLatch latch,
+                          final Request request,
                           final String node) {
         executor.execute(() -> {
             try {
@@ -141,7 +142,7 @@ class ShardedHttpApiBase extends HttpApiBase {
                 responses.add(response);
                 latch.countDown();
             } catch (IOException e) {
-                LOG.error("Failed to execute action on node {}", node, e);
+                LOG.error("Failed to handle request on node {}", node, e);
             } catch (PoolException pe) {
                 LOG.error("Node unavailable: {}", node);
             }
@@ -150,18 +151,14 @@ class ShardedHttpApiBase extends HttpApiBase {
 
     private Action<Response> getRequestHandler(final Request request, final ByteBuffer key) {
         switch (request.getMethod()) {
-            case Request.METHOD_GET: {
+            case Request.METHOD_GET:
                 return () -> get(key);
-            }
-            case Request.METHOD_PUT: {
+            case Request.METHOD_PUT:
                 return () -> put(request, key);
-            }
-            case Request.METHOD_DELETE: {
+            case Request.METHOD_DELETE:
                 return () -> delete(key);
-            }
-            default: {
+            default:
                 return null;
-            }
         }
     }
 
@@ -169,31 +166,26 @@ class ShardedHttpApiBase extends HttpApiBase {
                                            final Request request,
                                            final int ack) throws IOException {
         if (nodesResponses.size() < ack) {
-            LOG.info("Not enough responses received");
+            LOG.error("Not enough responses received");
             return new Response("504", "Not Enough Replicas".getBytes(StandardCharsets.UTF_8));
         }
         switch (request.getMethod()) {
-            case Request.METHOD_GET: {
-
+            case Request.METHOD_GET:
                 final List<Replica> replicas = new ArrayList<>();
                 for (int i = 0; i < ack; i++) {
                     replicas.add(Replica.fromResponse(nodesResponses.get(i)));
                 }
-                LOG.info("Send response to client on GET");
+                LOG.info("Send response to client on GET request");
                 return Replica.toResponse(Replica.merge(replicas));
-            }
-            case Request.METHOD_PUT: {
+            case Request.METHOD_PUT:
                 LOG.info("Send response to client on PUT request");
                 return new Response(Response.CREATED, Response.EMPTY);
-            }
-            case Request.METHOD_DELETE: {
+            case Request.METHOD_DELETE:
                 LOG.info("Send response to client on DELETE request");
                 return new Response(Response.ACCEPTED, Response.EMPTY);
-            }
-            default: {
+            default:
                 return new Response(Response.METHOD_NOT_ALLOWED,
                         "Method not allowed".getBytes(StandardCharsets.UTF_8));
-            }
         }
     }
 

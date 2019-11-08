@@ -106,18 +106,15 @@ public class ShardedHttpApi extends ShardedHttpApiBase {
     @Override
     public void handleDefault(final Request request, final HttpSession session) throws IOException {
         switch (request.getPath()) {
-            case "/v0/entity": {
+            case "/v0/entity":
                 entity(request, session);
                 break;
-            }
-            case "/v0/entities": {
+            case "/v0/entities":
                 entities(request, session);
                 break;
-            }
-            default: {
+            default:
                 session.sendError(Response.BAD_REQUEST, "Wrong path");
                 break;
-            }
         }
     }
 }
