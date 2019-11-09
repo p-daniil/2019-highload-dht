@@ -7,9 +7,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 
 class ExtendedCompletableFuture<T> extends CompletableFuture<T> {
+    private static final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     @SuppressWarnings("FutureReturnValueIgnored")
     static <T> CompletableFuture<List<T>> firstN(final List<CompletableFuture<T>> list, final int n) {
@@ -36,8 +39,11 @@ class ExtendedCompletableFuture<T> extends CompletableFuture<T> {
                 if (failure == null) {
                     if (!result.isDone()) {
                         final boolean commit;
-                        synchronized (rList) {
+                        lock.readLock().lock();
+                        try {
                             commit = rList.size() < n && rList.add(value) && rList.size() == n;
+                        } finally {
+                            lock.readLock().unlock();
                         }
                         if (commit) {
                             result.complete(Collections.unmodifiableList(rList));
