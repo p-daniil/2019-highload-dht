@@ -58,7 +58,7 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
                 return null;
             }
             if (rf.ack > topology.all().size()) {
-                session.sendError("504", "Unreachable replication factor");
+                session.sendError(Response.BAD_REQUEST, "Unreachable replication factor");
                 return null;
             }
         }
@@ -113,21 +113,20 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
                                                                    final Request request,
                                                                    final int ack) {
         final CompletableFuture<Response> future = new CompletableFuture<>();
-        ExtendedCompletableFuture.firstN(futures, ack)
-                .whenCompleteAsync((responses, fail) -> {
-                    if (fail == null) {
-                        try {
-                            final Response response = processNodesResponses(responses, request, ack);
-                            future.complete(response);
-                        } catch (IllegalArgumentException | IOException e) {
-                            LOG.error("Failed to process nodes responses", e);
-                            future.completeExceptionally(e);
-                        }
-                    } else {
-                        LOG.error("Not enough responses received");
-                        future.complete(new Response("504", "Not enough replicas".getBytes(UTF_8)));
-                    }
-                });
+        ExtendedCompletableFuture.firstN(futures, ack).whenCompleteAsync((responses, fail) -> {
+            if (fail == null) {
+                try {
+                    final Response response = processNodesResponses(responses, request, ack);
+                    future.complete(response);
+                } catch (IllegalArgumentException | IOException e) {
+                    LOG.error("Failed to process nodes responses", e);
+                    future.completeExceptionally(e);
+                }
+            } else {
+                LOG.error("Not enough responses received");
+                future.complete(new Response(Response.GATEWAY_TIMEOUT, "Not enough replicas".getBytes(UTF_8)));
+            }
+        });
         return future;
     }
 
@@ -183,7 +182,7 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
                                            final int ack) throws IOException {
         if (nodesResponses.size() < ack) {
             LOG.error("Not enough responses received");
-            return new Response("504", "Not Enough Replicas".getBytes(UTF_8));
+            return new Response(Response.GATEWAY_TIMEOUT, "Not Enough Replicas".getBytes(UTF_8));
         }
         switch (request.getMethod()) {
             case Request.METHOD_GET:
@@ -200,8 +199,7 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
                 LOG.info("Send response to client on DELETE request");
                 return new Response(Response.ACCEPTED, Response.EMPTY);
             default:
-                return new Response(Response.METHOD_NOT_ALLOWED,
-                        "Method not allowed".getBytes(UTF_8));
+                return new Response(Response.METHOD_NOT_ALLOWED, "Method not allowed".getBytes(UTF_8));
         }
     }
 
