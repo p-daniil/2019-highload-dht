@@ -5,6 +5,7 @@ import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.net.Socket;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
@@ -14,6 +15,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
 
 public class ShardedHttpApi extends ShardedHttpApiBase {
     private static final Logger LOG = LoggerFactory.getLogger(ShardedHttpApi.class);
@@ -54,24 +56,19 @@ public class ShardedHttpApi extends ShardedHttpApiBase {
 
         final String nodePollingHeader = request.getHeader(PROXY_HEADER);
         if (nodePollingHeader != null) {
-            processNodeRequest(request, key).whenCompleteAsync((response, fail) -> {
-                if (fail == null) {
-                    try {
-                        session.sendResponse(response);
-                    } catch (IOException e) {
-                        LOG.error("Failed to send response to node: {}", e.getMessage());
-                    }
-                } else {
-                    LOG.error("Error occurred while processing node request");
-                }
-            });
+            processNodeRequest(request, key).whenCompleteAsync(getNodeResponseHandler(session));
             return;
         }
 
         final RF rf = getRf(request, session);
         if (rf == null) return;
         LOG.info("New client request with RF {}", rf);
-        processClientRequest(request, key, rf).whenCompleteAsync((response, fail) -> {
+        processClientRequest(request, key, rf).whenCompleteAsync(getClientResponseHandler(session));
+    }
+
+    @NotNull
+    private BiConsumer<Response, Throwable> getClientResponseHandler(final HttpSession session) {
+        return (response, fail) -> {
             if (fail == null) {
                 try {
                     session.sendResponse(response);
@@ -86,7 +83,22 @@ public class ShardedHttpApi extends ShardedHttpApiBase {
                     LOG.error("Failed to send error to client: {}", ex.getMessage());
                 }
             }
-        });
+        };
+    }
+
+    @NotNull
+    private BiConsumer<Response, Throwable> getNodeResponseHandler(final HttpSession session) {
+        return (response, fail) -> {
+            if (fail == null) {
+                try {
+                    session.sendResponse(response);
+                } catch (IOException e) {
+                    LOG.error("Failed to send response to node: {}", e.getMessage());
+                }
+            } else {
+                LOG.error("Error occurred while processing node request");
+            }
+        };
     }
 
     /**

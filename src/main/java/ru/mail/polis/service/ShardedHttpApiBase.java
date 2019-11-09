@@ -88,14 +88,14 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
     CompletableFuture<Response> processClientRequest(final Request request,
                                                      final ByteBuffer key,
                                                      final RF rf) {
-        final Set<String> primaryNodes = topology.primaryFor(key, rf.from);
-        LOG.info("Node {} started to poll nodes", topology.getMe());
-
         final Action<Response> action = getRequestHandler(request, key);
         if (action == null) {
             return CompletableFuture.completedFuture(new Response(Response.METHOD_NOT_ALLOWED,
                     "Allowed only get, put and delete".getBytes(UTF_8)));
         }
+
+        final Set<String> primaryNodes = topology.primaryFor(key, rf.from);
+        LOG.info("Node {} started to poll nodes", topology.getMe());
 
         final List<CompletableFuture<Response>> nodesResponsesFutures = new ArrayList<>();
         for (final String node : primaryNodes) {
@@ -109,17 +109,17 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
     }
 
     @SuppressWarnings("FutureReturnValueIgnored")
-    private CompletableFuture<Response> processNodesResponsesAsync(final List<CompletableFuture<Response>> nodesResponsesFutures,
+    private CompletableFuture<Response> processNodesResponsesAsync(final List<CompletableFuture<Response>> futures,
                                                                    final Request request,
                                                                    final int ack) {
         final CompletableFuture<Response> future = new CompletableFuture<>();
-        ExtendedCompletableFuture.firstN(nodesResponsesFutures, ack)
+        ExtendedCompletableFuture.firstN(futures, ack)
                 .whenCompleteAsync((responses, fail) -> {
                     if (fail == null) {
                         try {
                             final Response response = processNodesResponses(responses, request, ack);
                             future.complete(response);
-                        } catch (Exception e) {
+                        } catch (IllegalArgumentException | IOException e) {
                             LOG.error("Failed to process nodes responses", e);
                             future.completeExceptionally(e);
                         }
