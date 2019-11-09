@@ -11,6 +11,7 @@
 !profiling/stage3/*
 !profiling/stage4/*
 !profiling/stage5/*
+!profiling/stage6/*
 !*.svg
 !*.txt
 !gradlew.bat

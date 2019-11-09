@@ -35,7 +35,7 @@ class ExtendedCompletableFuture<T> extends CompletableFuture<T> {
                 }
             }
         };
-        for (final CompletableFuture<T> f : list) f.whenComplete(c);
+        for (final CompletableFuture<T> f : list) f.whenCompleteAsync(c);
         return result;
     }
 }
