@@ -41,6 +41,7 @@ public class ShardedHttpApi extends ShardedHttpApiBase {
      * @param session current http session
      * @throws IOException if I/O errors occurred
      */
+    @SuppressWarnings("FutureReturnValueIgnored")
     private void entity(final Request request,
                         final HttpSession session) throws IOException {
         final String id = request.getParameter("id=");

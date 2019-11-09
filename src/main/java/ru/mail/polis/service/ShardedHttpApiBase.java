@@ -9,13 +9,7 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.InternalDAO;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -27,7 +21,7 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
 
     private final Executor executor;
     private final Topology<String> topology;
-    private final Map<String, HttpClient> clientPool;
+    private final Map<String, AsyncClient> clientPool;
 
     ShardedHttpApiBase(final int port,
                        final InternalDAO dao,
@@ -36,17 +30,13 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
         super(port, dao);
         this.executor = executor;
         this.topology = topology;
-
         this.clientPool = new HashMap<>();
         for (final String node : topology.all()) {
             if (topology.isMe(node)) {
                 continue;
             }
             assert !clientPool.containsKey(node);
-            this.clientPool.put(node, HttpClient.newBuilder()
-                    .connectTimeout(Duration.of(100, ChronoUnit.MILLIS))
-                    .build());
-//            this.pool.put(node, new HttpClient(new ConnectionString(node + "?timeout=100")));
+            this.clientPool.put(node, new AsyncClient(node));
         }
     }
 
@@ -114,11 +104,12 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
         return processNodesResponsesAsync(nodesResponsesFutures, request, rf.ack);
     }
 
+    @SuppressWarnings("FutureReturnValueIgnored")
     private CompletableFuture<Response> processNodesResponsesAsync(final List<CompletableFuture<Response>> nodesResponsesFutures,
                                                                    final Request request,
                                                                    final int ack) {
         final CompletableFuture<Response> future = new CompletableFuture<>();
-        executor.execute(() -> ExtendedCompletableFuture.firstN(nodesResponsesFutures, ack)
+        ExtendedCompletableFuture.firstN(nodesResponsesFutures, ack)
                 .whenCompleteAsync((responses, fail) -> {
                     if (fail == null) {
                         try {
@@ -132,8 +123,7 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
                         LOG.error("Not enough responses received");
                         future.complete(new Response("504", "Not enough replicas".getBytes(UTF_8)));
                     }
-                })
-        );
+                });
         return future;
     }
 
@@ -152,25 +142,22 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
         return future;
     }
 
+    @SuppressWarnings("FutureReturnValueIgnored")
     private CompletableFuture<Response> pollNodeAsync(final Request request,
                                                       final String node) {
         final CompletableFuture<Response> future = new CompletableFuture<>();
-        executor.execute(() -> proxy(request, node)
-                .whenCompleteAsync((response, fail) -> {
-                    if (fail == null) {
-                        LOG.info("Received response from node {}", node);
-                        future.complete(response);
-                    } else if (fail instanceof IOException) {
-                        LOG.error("Failed to handle request on node {}", node, fail);
-                        future.completeExceptionally(fail);
-                    }/* else if (fail instanceof PoolException) {
-                        LOG.error("Node unavailable: {}", node);
-                        future.completeExceptionally(fail);
-                    }*/ else {
-                        LOG.error("Failed to receive response from node: {}", node);
-                        future.completeExceptionally(fail);
-                    }
-                }));
+        proxy(request, node).whenCompleteAsync((response, fail) -> {
+            if (fail == null) {
+                LOG.info("Received response from node {}", node);
+                future.complete(response);
+            } else if (fail instanceof IOException) {
+                LOG.error("Failed to handle request on node {}", node, fail);
+                future.completeExceptionally(fail);
+            } else {
+                LOG.error("Failed to receive response from node: {}", node);
+                future.completeExceptionally(fail);
+            }
+        });
         return future;
     }
 
@@ -214,56 +201,7 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
         }
     }
 
-    @Nullable
-    private static String getMethodString(int method) {
-        switch (method) {
-            case Request.METHOD_GET:
-                return "GET";
-            case Request.METHOD_PUT:
-                return "PUT";
-            case Request.METHOD_DELETE:
-                return "DELETE";
-            default:
-                return null;
-        }
-    }
-
     private CompletableFuture<Response> proxy(final Request request, final String node) {
-        final String method = getMethodString(request.getMethod());
-        if (method == null) {
-            return CompletableFuture.completedFuture(new Response(Response.METHOD_NOT_ALLOWED,
-                    "Method not allowed".getBytes(UTF_8)));
-        }
-        final HttpRequest asyncRequest = HttpRequest.newBuilder()
-                .header("Node-polling", "true")
-                .uri(URI.create(node + request.getURI()))
-                .method(method, method.equals("PUT") ? HttpRequest.BodyPublishers.ofByteArray(request.getBody()) : HttpRequest.BodyPublishers.noBody())
-                .build();
-        final CompletableFuture<Response> future = new CompletableFuture<>();
-        if (request.getMethod() == Request.METHOD_GET) {
-            clientPool.get(node).sendAsync(asyncRequest, HttpResponse.BodyHandlers.discarding())
-                    .whenCompleteAsync((httpResponse, throwable) -> {
-                        if (throwable == null) {
-                            final Response response = new Response(String.valueOf(httpResponse.statusCode()), Response.EMPTY);
-                            final String timestamp = httpResponse.headers().firstValue("Timestamp").orElse("");
-                            if (!timestamp.isEmpty()) {
-                                response.addHeader(TIMESTAMP_HEADER + timestamp);
-                            }
-                            future.complete(response);
-                        } else {
-                            future.completeExceptionally(throwable);
-                        }
-                    });
-        } else {
-            clientPool.get(node).sendAsync(asyncRequest, HttpResponse.BodyHandlers.ofByteArray())
-                    .whenCompleteAsync((httpResponse, throwable) -> {
-                        if (throwable == null) {
-                            future.complete(new Response(String.valueOf(httpResponse.statusCode()), httpResponse.body()));
-                        } else {
-                            future.completeExceptionally(throwable);
-                        }
-                    });
-        }
-        return future;
+        return clientPool.get(node).proxy(request);
     }
 }
