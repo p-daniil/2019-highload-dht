@@ -53,14 +53,39 @@ public class ShardedHttpApi extends ShardedHttpApiBase {
 
         final String nodePollingHeader = request.getHeader(PROXY_HEADER);
         if (nodePollingHeader != null) {
-            processNodeRequest(request, session, key);
+            processNodeRequest(request, key).whenCompleteAsync((response, fail) -> {
+                if (fail == null) {
+                    try {
+                        session.sendResponse(response);
+                    } catch (IOException e) {
+                        LOG.error("Failed to send response to node: {}", e.getMessage());
+                    }
+                } else {
+                    LOG.error("Error occurred while processing node request");
+                }
+            });
             return;
         }
 
         final RF rf = getRf(request, session);
         if (rf == null) return;
         LOG.info("New client request with RF {}", rf);
-        executeAsync(session, () -> processClientRequest(request, key, rf));
+        processClientRequest(request, key, rf).whenCompleteAsync((response, fail) -> {
+            if (fail == null) {
+                try {
+                    session.sendResponse(response);
+                } catch (IOException e) {
+                    LOG.error("Failed to send response to client: {}", e.getMessage());
+                }
+            } else {
+                LOG.error("Not enough replicas", fail);
+                try {
+                    session.sendError("504", "Not Enough Replicas");
+                } catch (IOException ex) {
+                    LOG.error("Failed to send error to client: {}", ex.getMessage());
+                }
+            }
+        });
     }
 
     /**

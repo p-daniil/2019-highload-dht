@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 public abstract class HttpApiBase extends HttpServer implements Service {
-    static final String PROXY_HEADER = "Node polling: true";
+    static final String PROXY_HEADER = "Node-polling: true";
     static final String TIMESTAMP_HEADER = "Timestamp: ";
 
     protected final InternalDAO dao;

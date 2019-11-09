@@ -1,36 +1,33 @@
 package ru.mail.polis.service;
 
-import one.nio.http.HttpClient;
-import one.nio.http.HttpException;
 import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
-import one.nio.net.ConnectionString;
-import one.nio.pool.PoolException;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.InternalDAO;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 abstract class ShardedHttpApiBase extends HttpApiBase {
     private static final Logger LOG = LoggerFactory.getLogger(ShardedHttpApiBase.class);
 
     private final Executor executor;
     private final Topology<String> topology;
-    private final Map<String, HttpClient> pool;
+    private final Map<String, HttpClient> clientPool;
 
     ShardedHttpApiBase(final int port,
                        final InternalDAO dao,
@@ -40,13 +37,16 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
         this.executor = executor;
         this.topology = topology;
 
-        this.pool = new HashMap<>();
+        this.clientPool = new HashMap<>();
         for (final String node : topology.all()) {
             if (topology.isMe(node)) {
                 continue;
             }
-            assert !pool.containsKey(node);
-            this.pool.put(node, new HttpClient(new ConnectionString(node + "?timeout=100")));
+            assert !clientPool.containsKey(node);
+            this.clientPool.put(node, HttpClient.newBuilder()
+                    .connectTimeout(Duration.of(100, ChronoUnit.MILLIS))
+                    .build());
+//            this.pool.put(node, new HttpClient(new ConnectionString(node + "?timeout=100")));
         }
     }
 
@@ -71,82 +71,107 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
         return rf;
     }
 
-    void processNodeRequest(final Request request,
-                            final HttpSession session,
-                            final ByteBuffer key) throws IOException {
+    CompletableFuture<Response> processNodeRequest(final Request request,
+                                                   final ByteBuffer key) {
         final Action<Response> action = getRequestHandler(request, key);
         if (action == null) {
-            session.sendError(Response.METHOD_NOT_ALLOWED, "Allowed only get, put and delete");
+            return CompletableFuture.completedFuture(
+                    new Response(Response.METHOD_NOT_ALLOWED, "Allowed only get, put and delete".getBytes(UTF_8)));
         }
-        executeAsync(session, action);
+        final CompletableFuture<Response> future = new CompletableFuture<>();
+        executor.execute(() -> {
+            try {
+                final Response response = action.act();
+                future.complete(response);
+            } catch (IOException e) {
+                LOG.error("Failed to handle node request");
+                future.completeExceptionally(e);
+            }
+        });
+        return future;
     }
 
-    Response processClientRequest(final Request request,
-                                  final ByteBuffer key,
-                                  final RF rf) throws IOException {
+    CompletableFuture<Response> processClientRequest(final Request request,
+                                                     final ByteBuffer key,
+                                                     final RF rf) {
         final Set<String> primaryNodes = topology.primaryFor(key, rf.from);
-        final List<Response> responses = new CopyOnWriteArrayList<>();
-        final CountDownLatch latch = new CountDownLatch(rf.ack);
         LOG.info("Node {} started to poll nodes", topology.getMe());
 
         final Action<Response> action = getRequestHandler(request, key);
         if (action == null) {
-            return new Response(Response.METHOD_NOT_ALLOWED,
-                    "Allowed only get, put and delete".getBytes(StandardCharsets.UTF_8));
+            return CompletableFuture.completedFuture(new Response(Response.METHOD_NOT_ALLOWED,
+                    "Allowed only get, put and delete".getBytes(UTF_8)));
         }
 
+        final List<CompletableFuture<Response>> nodesResponsesFutures = new ArrayList<>();
         for (final String node : primaryNodes) {
             if (topology.isMe(node)) {
-                processLocally(responses, latch, action);
+                nodesResponsesFutures.add(processLocallyAsync(action));
             } else {
-                pollNode(responses, latch, request, node);
+                nodesResponsesFutures.add(pollNodeAsync(request, node));
             }
         }
-
-        try {
-            if (!latch.await(500, TimeUnit.MILLISECONDS)) {
-                LOG.error("Node polling timeout: not enough replicas");
-                return new Response("504", "Not Enough Replicas".getBytes(StandardCharsets.UTF_8));
-            }
-        } catch (InterruptedException e) {
-            LOG.error("Node polling was interrupted", e);
-            Thread.currentThread().interrupt();
-        }
-        LOG.info("Received {} responses from nodes. Process them.", rf.ack);
-        return processNodesResponses(responses, request, rf.ack);
+        return processNodesResponsesAsync(nodesResponsesFutures, request, rf.ack);
     }
 
-    private void processLocally(final List<Response> responses,
-                                final CountDownLatch latch,
-                                final Action<Response> action) {
+    private CompletableFuture<Response> processNodesResponsesAsync(final List<CompletableFuture<Response>> nodesResponsesFutures,
+                                                                   final Request request,
+                                                                   final int ack) {
+        final CompletableFuture<Response> future = new CompletableFuture<>();
+        executor.execute(() -> ExtendedCompletableFuture.firstN(nodesResponsesFutures, ack)
+                .whenCompleteAsync((responses, fail) -> {
+                    if (fail == null) {
+                        try {
+                            final Response response = processNodesResponses(responses, request, ack);
+                            future.complete(response);
+                        } catch (Exception e) {
+                            LOG.error("Failed to process nodes responses", e);
+                            future.completeExceptionally(e);
+                        }
+                    } else {
+                        LOG.error("Not enough responses received");
+                        future.complete(new Response("504", "Not enough replicas".getBytes(UTF_8)));
+                    }
+                })
+        );
+        return future;
+    }
+
+    private CompletableFuture<Response> processLocallyAsync(final Action<Response> action) {
+        final CompletableFuture<Response> future = new CompletableFuture<>();
         executor.execute(() -> {
             try {
                 final Response response = action.act();
                 LOG.info("Received response from coordinator node");
-                responses.add(response);
-                latch.countDown();
+                future.complete(response);
             } catch (IOException e) {
                 LOG.error("Failed to handle request on coordinator node", e);
+                future.completeExceptionally(e);
             }
         });
+        return future;
     }
 
-    private void pollNode(final List<Response> responses,
-                          final CountDownLatch latch,
-                          final Request request,
-                          final String node) {
-        executor.execute(() -> {
-            try {
-                final Response response = proxy(request, node);
-                LOG.info("Received response from node {}", node);
-                responses.add(response);
-                latch.countDown();
-            } catch (IOException e) {
-                LOG.error("Failed to handle request on node {}", node, e);
-            } catch (PoolException pe) {
-                LOG.error("Node unavailable: {}", node);
-            }
-        });
+    private CompletableFuture<Response> pollNodeAsync(final Request request,
+                                                      final String node) {
+        final CompletableFuture<Response> future = new CompletableFuture<>();
+        executor.execute(() -> proxy(request, node)
+                .whenCompleteAsync((response, fail) -> {
+                    if (fail == null) {
+                        LOG.info("Received response from node {}", node);
+                        future.complete(response);
+                    } else if (fail instanceof IOException) {
+                        LOG.error("Failed to handle request on node {}", node, fail);
+                        future.completeExceptionally(fail);
+                    }/* else if (fail instanceof PoolException) {
+                        LOG.error("Node unavailable: {}", node);
+                        future.completeExceptionally(fail);
+                    }*/ else {
+                        LOG.error("Failed to receive response from node: {}", node);
+                        future.completeExceptionally(fail);
+                    }
+                }));
+        return future;
     }
 
     private Action<Response> getRequestHandler(final Request request, final ByteBuffer key) {
@@ -167,7 +192,7 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
                                            final int ack) throws IOException {
         if (nodesResponses.size() < ack) {
             LOG.error("Not enough responses received");
-            return new Response("504", "Not Enough Replicas".getBytes(StandardCharsets.UTF_8));
+            return new Response("504", "Not Enough Replicas".getBytes(UTF_8));
         }
         switch (request.getMethod()) {
             case Request.METHOD_GET:
@@ -185,30 +210,60 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
                 return new Response(Response.ACCEPTED, Response.EMPTY);
             default:
                 return new Response(Response.METHOD_NOT_ALLOWED,
-                        "Method not allowed".getBytes(StandardCharsets.UTF_8));
+                        "Method not allowed".getBytes(UTF_8));
         }
     }
 
-    void executeAsync(final HttpSession session, final Action<Response> action) {
-        executor.execute(() -> {
-            try {
-                session.sendResponse(action.act());
-            } catch (IOException e) {
-                try {
-                    session.sendError(Response.INTERNAL_ERROR, e.getMessage());
-                } catch (IOException ex) {
-                    LOG.error("Failed to send error to client: {}", ex.getMessage());
-                }
-            }
-        });
+    @Nullable
+    private static String getMethodString(int method) {
+        switch (method) {
+            case Request.METHOD_GET:
+                return "GET";
+            case Request.METHOD_PUT:
+                return "PUT";
+            case Request.METHOD_DELETE:
+                return "DELETE";
+            default:
+                return null;
+        }
     }
 
-    private synchronized Response proxy(final Request request, final String node) throws IOException, PoolException {
-        request.addHeader(PROXY_HEADER);
-        try {
-            return pool.get(node).invoke(request);
-        } catch (InterruptedException | HttpException e) {
-            throw new IOException("Failed to proxy", e);
+    private CompletableFuture<Response> proxy(final Request request, final String node) {
+        final String method = getMethodString(request.getMethod());
+        if (method == null) {
+            return CompletableFuture.completedFuture(new Response(Response.METHOD_NOT_ALLOWED,
+                    "Method not allowed".getBytes(UTF_8)));
         }
+        final HttpRequest asyncRequest = HttpRequest.newBuilder()
+                .header("Node-polling", "true")
+                .uri(URI.create(node + request.getURI()))
+                .method(method, method.equals("PUT") ? HttpRequest.BodyPublishers.ofByteArray(request.getBody()) : HttpRequest.BodyPublishers.noBody())
+                .build();
+        final CompletableFuture<Response> future = new CompletableFuture<>();
+        if (request.getMethod() == Request.METHOD_GET) {
+            clientPool.get(node).sendAsync(asyncRequest, HttpResponse.BodyHandlers.discarding())
+                    .whenCompleteAsync((httpResponse, throwable) -> {
+                        if (throwable == null) {
+                            final Response response = new Response(String.valueOf(httpResponse.statusCode()), Response.EMPTY);
+                            final String timestamp = httpResponse.headers().firstValue("Timestamp").orElse("");
+                            if (!timestamp.isEmpty()) {
+                                response.addHeader(TIMESTAMP_HEADER + timestamp);
+                            }
+                            future.complete(response);
+                        } else {
+                            future.completeExceptionally(throwable);
+                        }
+                    });
+        } else {
+            clientPool.get(node).sendAsync(asyncRequest, HttpResponse.BodyHandlers.ofByteArray())
+                    .whenCompleteAsync((httpResponse, throwable) -> {
+                        if (throwable == null) {
+                            future.complete(new Response(String.valueOf(httpResponse.statusCode()), httpResponse.body()));
+                        } else {
+                            future.completeExceptionally(throwable);
+                        }
+                    });
+        }
+        return future;
     }
 }
