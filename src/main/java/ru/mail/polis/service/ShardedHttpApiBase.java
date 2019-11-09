@@ -100,8 +100,10 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
         final List<CompletableFuture<Response>> nodesResponsesFutures = new ArrayList<>();
         for (final String node : primaryNodes) {
             if (topology.isMe(node)) {
+                LOG.info("Task to me");
                 nodesResponsesFutures.add(processLocallyAsync(action));
             } else {
+                LOG.info("Task to other node");
                 nodesResponsesFutures.add(pollNodeAsync(request, node));
             }
         }
@@ -151,6 +153,7 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
                                                       final String node) {
         final CompletableFuture<Response> future = new CompletableFuture<>();
         proxy(request, node).whenCompleteAsync((response, fail) -> {
+            LOG.info("Proxy complete");
             if (fail == null) {
                 LOG.info("Received response from node {}", node);
                 future.complete(response);
