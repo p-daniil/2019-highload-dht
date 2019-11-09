@@ -4,8 +4,6 @@ import one.nio.http.Request;
 import one.nio.http.Response;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -20,7 +18,6 @@ import java.util.function.BiConsumer;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 class AsyncClient {
-    private static final Logger LOG = LoggerFactory.getLogger(AsyncClient.class);
     private static final String TIMESTAMP_HEADER = "Timestamp: ";
     private final HttpClient client;
     private final String nodeAddress;
@@ -28,7 +25,7 @@ class AsyncClient {
     AsyncClient(final String nodeAddress, final Executor executor) {
         this.client = HttpClient.newBuilder()
                 .executor(executor)
-                .connectTimeout(Duration.of(50, ChronoUnit.MILLIS))
+                .connectTimeout(Duration.of(100, ChronoUnit.MILLIS))
                 .build();
         this.nodeAddress = nodeAddress;
     }
@@ -40,15 +37,14 @@ class AsyncClient {
             return CompletableFuture.completedFuture(new Response(Response.METHOD_NOT_ALLOWED,
                     "Method not allowed".getBytes(UTF_8)));
         }
+
         final HttpRequest asyncRequest = createRequest(request, method);
-        LOG.info("Created request");
+
         final CompletableFuture<Response> future = new CompletableFuture<>();
         if (request.getMethod() == Request.METHOD_GET) {
-            LOG.info("Execute get request");
             client.sendAsync(asyncRequest, HttpResponse.BodyHandlers.ofByteArray())
                     .whenCompleteAsync(getResponseWithBodyHandler(future));
         } else {
-            LOG.info("Execute put or delete request");
             client.sendAsync(asyncRequest, HttpResponse.BodyHandlers.discarding())
                     .whenCompleteAsync(getEmptyBodyResponseHandler(future));
         }
@@ -59,7 +55,6 @@ class AsyncClient {
     private BiConsumer<HttpResponse<Void>, Throwable> getEmptyBodyResponseHandler(
             final CompletableFuture<Response> future) {
         return (httpResponse, throwable) -> {
-            LOG.info("Received response with empty body");
             if (throwable == null) {
                 future.complete(new Response(String.valueOf(httpResponse.statusCode()), Response.EMPTY));
             } else {
@@ -72,7 +67,6 @@ class AsyncClient {
     private BiConsumer<HttpResponse<byte[]>, Throwable> getResponseWithBodyHandler(
             final CompletableFuture<Response> future) {
         return (httpResponse, throwable) -> {
-            LOG.info("Received response on GET");
             if (throwable == null) {
                 final Response response = new Response(
                         String.valueOf(httpResponse.statusCode()),

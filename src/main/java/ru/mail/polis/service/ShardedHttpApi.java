@@ -56,47 +56,32 @@ public class ShardedHttpApi extends ShardedHttpApiBase {
 
         final String nodePollingHeader = request.getHeader(PROXY_HEADER);
         if (nodePollingHeader != null) {
-            processNodeRequest(request, key).whenCompleteAsync(getNodeResponseHandler(session));
+            processNodeRequest(request, key).whenCompleteAsync(getResponseHandler(session));
             return;
         }
 
         final RF rf = getRf(request, session);
         if (rf == null) return;
         LOG.info("New client request with RF {}", rf);
-        processClientRequest(request, key, rf).whenCompleteAsync(getClientResponseHandler(session));
+        processClientRequest(request, key, rf).whenCompleteAsync(getResponseHandler(session));
     }
 
     @NotNull
-    private BiConsumer<Response, Throwable> getClientResponseHandler(final HttpSession session) {
+    private BiConsumer<Response, Throwable> getResponseHandler(final HttpSession session) {
         return (response, fail) -> {
             if (fail == null) {
                 try {
                     session.sendResponse(response);
                 } catch (IOException e) {
-                    LOG.error("Failed to send response to client: {}", e.getMessage());
+                    LOG.error("Failed to send response", e);
                 }
             } else {
-                LOG.error("Not enough replicas", fail);
+                LOG.error("Failed to create response", fail);
                 try {
-                    session.sendError("504", "Not Enough Replicas");
+                    session.sendError(Response.INTERNAL_ERROR, "Failed to create response");
                 } catch (IOException ex) {
-                    LOG.error("Failed to send error to client: {}", ex.getMessage());
+                    LOG.error("Failed to send error", ex);
                 }
-            }
-        };
-    }
-
-    @NotNull
-    private BiConsumer<Response, Throwable> getNodeResponseHandler(final HttpSession session) {
-        return (response, fail) -> {
-            if (fail == null) {
-                try {
-                    session.sendResponse(response);
-                } catch (IOException e) {
-                    LOG.error("Failed to send response to node: {}", e.getMessage());
-                }
-            } else {
-                LOG.error("Error occurred while processing node request");
             }
         };
     }

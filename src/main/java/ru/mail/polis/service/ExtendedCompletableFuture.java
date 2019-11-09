@@ -1,8 +1,6 @@
 package ru.mail.polis.service;
 
 import org.jetbrains.annotations.NotNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,7 +12,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 
 class ExtendedCompletableFuture<T> extends CompletableFuture<T> {
-    private static final Logger LOG = LoggerFactory.getLogger(ExtendedCompletableFuture.class);
     private static final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     @SuppressWarnings("FutureReturnValueIgnored")
@@ -39,7 +36,6 @@ class ExtendedCompletableFuture<T> extends CompletableFuture<T> {
                                                                  final List<T> rList,
                                                                  final CompletableFuture<List<T>> result) {
         return (value, failure) -> {
-            LOG.info("Future completed");
                 if (failure == null) {
                     if (!result.isDone()) {
                         final boolean commit;
