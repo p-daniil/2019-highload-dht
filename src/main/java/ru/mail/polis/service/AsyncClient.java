@@ -12,6 +12,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -21,8 +22,9 @@ class AsyncClient {
     private final HttpClient client;
     private final String nodeAddress;
 
-    AsyncClient(final String nodeAddress) {
+    AsyncClient(final String nodeAddress, final Executor executor) {
         this.client = HttpClient.newBuilder()
+                .executor(executor)
                 .connectTimeout(Duration.of(100, ChronoUnit.MILLIS))
                 .build();
         this.nodeAddress = nodeAddress;

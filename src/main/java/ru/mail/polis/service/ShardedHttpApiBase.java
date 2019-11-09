@@ -40,7 +40,7 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
                 continue;
             }
             assert !clientPool.containsKey(node);
-            this.clientPool.put(node, new AsyncClient(node));
+            this.clientPool.put(node, new AsyncClient(node, executor));
         }
     }
 
