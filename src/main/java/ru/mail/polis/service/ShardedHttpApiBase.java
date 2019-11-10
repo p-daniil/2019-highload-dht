@@ -1,9 +1,7 @@
 package ru.mail.polis.service;
 
-import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.InternalDAO;
@@ -44,23 +42,16 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
         }
     }
 
-    @Nullable
-    RF getRf(final Request request, final HttpSession session) throws IOException {
+    RF getRf(final Request request) throws IllegalArgumentException {
         final String replicas = request.getParameter("replicas=");
         final RF rf;
         if (replicas == null) {
             rf = RF.def(topology.all().size());
         } else {
-            try {
-                rf = RF.parse(replicas);
-            } catch (IllegalArgumentException e) {
-                session.sendError(Response.BAD_REQUEST, e.getMessage());
-                return null;
-            }
-            if (rf.ack > topology.all().size()) {
-                session.sendError(Response.BAD_REQUEST, "Unreachable replication factor");
-                return null;
-            }
+            rf = RF.parse(replicas);
+        }
+        if (rf.ack > topology.all().size()) {
+            throw new IllegalArgumentException("Unreachable replication factor");
         }
         return rf;
     }

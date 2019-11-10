@@ -13,7 +13,7 @@ public final class RF {
         this.from = from;
     }
 
-    static RF parse(final String rf) {
+    static RF parse(final String rf) throws IllegalArgumentException {
         final List<String> splited = Splitter.on('/').splitToList(rf);
 
         int ack = -1;

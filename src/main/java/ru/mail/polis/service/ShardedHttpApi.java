@@ -1,11 +1,9 @@
 package ru.mail.polis.service;
 
-import com.google.common.base.Charsets;
 import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.net.Socket;
-import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
@@ -14,8 +12,10 @@ import ru.mail.polis.dao.InternalDAO;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.function.BiConsumer;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class ShardedHttpApi extends ShardedHttpApiBase {
     private static final Logger LOG = LoggerFactory.getLogger(ShardedHttpApi.class);
@@ -41,34 +41,36 @@ public class ShardedHttpApi extends ShardedHttpApiBase {
      *
      * @param request received request
      * @param session current http session
-     * @throws IOException if I/O errors occurred
      */
     @SuppressWarnings("FutureReturnValueIgnored")
-    private void entity(final Request request,
-                        final HttpSession session) throws IOException {
+    private void entity(final Request request, final HttpSession session) {
         final String id = request.getParameter("id=");
         if (id == null || id.isEmpty()) {
-            session.sendError(Response.BAD_REQUEST, "No id");
+            sendResponseAsync(new Response(Response.BAD_REQUEST, "No id".getBytes(UTF_8)), session);
             return;
         }
 
-        final ByteBuffer key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
+        final ByteBuffer key = ByteBuffer.wrap(id.getBytes(UTF_8));
 
         final String nodePollingHeader = request.getHeader(PROXY_HEADER);
         if (nodePollingHeader != null) {
-            processNodeRequest(request, key).whenCompleteAsync(getResponseHandler(session));
+            sendResponseAsync(processNodeRequest(request, key), session);
             return;
         }
 
-        final RF rf = getRf(request, session);
-        if (rf == null) return;
+        final RF rf;
+        try {
+            rf = getRf(request);
+        } catch (IllegalArgumentException e) {
+            sendResponseAsync(new Response(Response.BAD_REQUEST, e.getMessage().getBytes(UTF_8)), session);
+            return;
+        }
         LOG.info("New client request with RF {}", rf);
-        processClientRequest(request, key, rf).whenCompleteAsync(getResponseHandler(session));
+        sendResponseAsync(processClientRequest(request, key, rf), session);
     }
 
-    @NotNull
-    private BiConsumer<Response, Throwable> getResponseHandler(final HttpSession session) {
-        return (response, fail) -> {
+    private void sendResponseAsync(final CompletableFuture<Response> responseFuture, final HttpSession session) {
+        responseFuture.whenCompleteAsync((response, fail) -> {
             if (fail == null) {
                 try {
                     session.sendResponse(response);
@@ -83,7 +85,11 @@ public class ShardedHttpApi extends ShardedHttpApiBase {
                     LOG.error("Failed to send error", ex);
                 }
             }
-        };
+        });
+    }
+
+    private void sendResponseAsync(final Response response, final HttpSession session) {
+        sendResponseAsync(CompletableFuture.completedFuture(response), session);
     }
 
     /**
@@ -93,8 +99,7 @@ public class ShardedHttpApi extends ShardedHttpApiBase {
      * @param session current http session
      * @throws IOException if I/O errors occurred
      */
-    private void entities(final Request request,
-                          final HttpSession session) throws IOException {
+    private void entities(final Request request, final HttpSession session) throws IOException {
         final String start = request.getParameter("start=");
 
         if (start == null || start.isEmpty()) {
@@ -113,8 +118,8 @@ public class ShardedHttpApi extends ShardedHttpApiBase {
 
         try {
             final Iterator<Record> records = dao.recordRange(
-                    ByteBuffer.wrap(start.getBytes(Charsets.UTF_8)),
-                    end == null ? null : ByteBuffer.wrap(end.getBytes(Charsets.UTF_8)));
+                    ByteBuffer.wrap(start.getBytes(UTF_8)),
+                    end == null ? null : ByteBuffer.wrap(end.getBytes(UTF_8)));
             ((StorageSession) session).stream(records);
         } catch (IOException e) {
             session.sendError(Response.INTERNAL_ERROR, e.getMessage());
