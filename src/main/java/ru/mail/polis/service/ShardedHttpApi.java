@@ -69,6 +69,7 @@ public class ShardedHttpApi extends ShardedHttpApiBase {
         sendResponseAsync(processClientRequest(request, key, rf), session);
     }
 
+    @SuppressWarnings("FutureReturnValueIgnored")
     private void sendResponseAsync(final CompletableFuture<Response> responseFuture, final HttpSession session) {
         responseFuture.whenCompleteAsync((response, fail) -> {
             if (fail == null) {
