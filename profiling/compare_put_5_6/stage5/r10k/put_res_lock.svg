@@ -1,6 +1,6 @@
 <?xml version="1.0" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg version="1.1" width="1200" height="118" onload="init(evt)" viewBox="0 0 1200 118" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<svg version="1.1" width="1200" height="198" onload="init(evt)" viewBox="0 0 1200 198" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <style type="text/css">
 	text { font-family:Verdana; font-size:12px; fill:rgb(0,0,0); }
 	#search { opacity:0.1; cursor:pointer; }
@@ -328,26 +328,78 @@
 </script>
 <rect x="0" y="0" width="100%" height="100%" fill="rgb(240,240,220)"/>
 <text id="title" x="600" y="24">Flame Graph</text>
-<text id="details" x="10" y="101"> </text>
+<text id="details" x="10" y="181"> </text>
 <text id="unzoom" x="10" y="24" class="hide">Reset Zoom</text>
 <text id="search" x="1090" y="24">Search</text>
-<text id="matched" x="1090" y="101"> </text>
+<text id="matched" x="1090" y="181"> </text>
 <g id="frames">
 <g>
-<title>all (636,390 samples, 100.00%)</title><rect x="10.0" y="67.0" width="1180.0" height="15" fill="#f57575" rx="2" ry="2"/>
-<text x="13.0" y="78.0">all</text>
+<title>all (595,768 samples, 100.00%)</title><rect x="10.0" y="147.0" width="1180.0" height="15" fill="#e45e5e" rx="2" ry="2"/>
+<text x="13.0" y="158.0">all</text>
 </g>
 <g>
-<title>[not_walkable] (636,390 samples, 100.00%)</title><rect x="10.0" y="51.0" width="1180.0" height="15" fill="#fc7e7e" rx="2" ry="2"/>
-<text x="13.0" y="62.0">[not_walkable]</text>
+<title>java/lang/Thread.run (594,372 samples, 99.77%)</title><rect x="10.0" y="131.0" width="1177.2" height="15" fill="#6afb6a" rx="2" ry="2"/>
+<text x="13.0" y="142.0">java/lang/Thread.run</text>
 </g>
 <g>
-<title>ru.mail.polis.service.ShardedHttpApi (632,179 samples, 99.34%)</title><rect x="10.0" y="35.0" width="1172.2" height="15" fill="#5ccaca" rx="2" ry="2"/>
-<text x="13.0" y="46.0">ru.mail.polis.service.ShardedHttpApi</text>
+<title>java/util/concurrent/ThreadPoolExecutor$Worker.run (594,372 samples, 99.77%)</title><rect x="10.0" y="115.0" width="1177.2" height="15" fill="#60f160" rx="2" ry="2"/>
+<text x="13.0" y="126.0">java/util/concurrent/ThreadPoolExecutor$Worker.run</text>
 </g>
 <g>
-<title>ru.mail.polis.service.StorageSession (4,211 samples, 0.66%)</title><rect x="1182.2" y="35.0" width="7.8" height="15" fill="#55c3c3" rx="2" ry="2"/>
-<text x="1185.2" y="46.0"></text>
+<title>java/util/concurrent/ThreadPoolExecutor.runWorker (594,372 samples, 99.77%)</title><rect x="10.0" y="99.0" width="1177.2" height="15" fill="#5aeb5a" rx="2" ry="2"/>
+<text x="13.0" y="110.0">java/util/concurrent/ThreadPoolExecutor.runWorker</text>
+</g>
+<g>
+<title>java/util/concurrent/ThreadPoolExecutor.getTask (155 samples, 0.03%)</title><rect x="10.0" y="83.0" width="0.3" height="15" fill="#55e655" rx="2" ry="2"/>
+<text x="13.0" y="94.0"></text>
+</g>
+<g>
+<title>java/util/concurrent/LinkedBlockingQueue.take (155 samples, 0.03%)</title><rect x="10.0" y="67.0" width="0.3" height="15" fill="#5bec5b" rx="2" ry="2"/>
+<text x="13.0" y="78.0"></text>
+</g>
+<g>
+<title>ru/mail/polis/service/ShardedHttpApiBase$$Lambda$63/1784510725.run (1,230 samples, 0.21%)</title><rect x="10.3" y="83.0" width="2.4" height="15" fill="#6cfd6c" rx="2" ry="2"/>
+<text x="13.3" y="94.0"></text>
+</g>
+<g>
+<title>ru/mail/polis/service/ShardedHttpApiBase.lambda$executeAsync$5 (1,230 samples, 0.21%)</title><rect x="10.3" y="67.0" width="2.4" height="15" fill="#54e554" rx="2" ry="2"/>
+<text x="13.3" y="78.0"></text>
+</g>
+<g>
+<title>one/nio/http/HttpSession.sendResponse (1,220 samples, 0.20%)</title><rect x="10.3" y="51.0" width="2.4" height="15" fill="#52e352" rx="2" ry="2"/>
+<text x="13.3" y="62.0"></text>
+</g>
+<g>
+<title>ru.mail.polis.service.StorageSession (1,220 samples, 0.20%)</title><rect x="10.3" y="35.0" width="2.4" height="15" fill="#57c5c5" rx="2" ry="2"/>
+<text x="13.3" y="46.0"></text>
+</g>
+<g>
+<title>ru/mail/polis/service/ShardedHttpApiBase$$Lambda$70/424418497.run (592,987 samples, 99.53%)</title><rect x="12.7" y="83.0" width="1174.5" height="15" fill="#58e958" rx="2" ry="2"/>
+<text x="15.7" y="94.0">ru/mail/polis/service/ShardedHttpApiBase$$Lambda$70/424418497.run</text>
+</g>
+<g>
+<title>ru/mail/polis/service/ShardedHttpApiBase.lambda$pollNode$1 (592,987 samples, 99.53%)</title><rect x="12.7" y="67.0" width="1174.5" height="15" fill="#60f160" rx="2" ry="2"/>
+<text x="15.7" y="78.0">ru/mail/polis/service/ShardedHttpApiBase.lambda$pollNode$1</text>
+</g>
+<g>
+<title>ru/mail/polis/service/ShardedHttpApiBase.proxy (592,987 samples, 99.53%)</title><rect x="12.7" y="51.0" width="1174.5" height="15" fill="#54e554" rx="2" ry="2"/>
+<text x="15.7" y="62.0">ru/mail/polis/service/ShardedHttpApiBase.proxy</text>
+</g>
+<g>
+<title>ru.mail.polis.service.ShardedHttpApi (592,987 samples, 99.53%)</title><rect x="12.7" y="35.0" width="1174.5" height="15" fill="#65d3d3" rx="2" ry="2"/>
+<text x="15.7" y="46.0">ru.mail.polis.service.ShardedHttpApi</text>
+</g>
+<g>
+<title>one/nio/server/SelectorThread.run (1,396 samples, 0.23%)</title><rect x="1187.2" y="131.0" width="2.8" height="15" fill="#65f665" rx="2" ry="2"/>
+<text x="1190.2" y="142.0"></text>
+</g>
+<g>
+<title>one/nio/net/Session.process (1,396 samples, 0.23%)</title><rect x="1187.2" y="115.0" width="2.8" height="15" fill="#5ced5c" rx="2" ry="2"/>
+<text x="1190.2" y="126.0"></text>
+</g>
+<g>
+<title>ru.mail.polis.service.StorageSession (1,362 samples, 0.23%)</title><rect x="1187.3" y="99.0" width="2.7" height="15" fill="#5ecccc" rx="2" ry="2"/>
+<text x="1190.3" y="110.0"></text>
 </g>
 </g>
 </svg>
