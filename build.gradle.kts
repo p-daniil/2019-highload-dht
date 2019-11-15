@@ -53,7 +53,7 @@ application {
     mainClassName = "ru.mail.polis.Cluster"
 
     // And limit Xmx
-    applicationDefaultJvmArgs = listOf("-Xmx256m", "-XX:+UnlockDiagnosticVMOptions", "-XX:+DebugNonSafepoints")
+    applicationDefaultJvmArgs = listOf("-Xmx256m"/*, "-XX:+UnlockDiagnosticVMOptions", "-XX:+DebugNonSafepoints"*/)
 }
 
 // Fail on warnings
