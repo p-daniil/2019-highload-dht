@@ -36,22 +36,21 @@ class ExtendedCompletableFuture<T> extends CompletableFuture<T> {
                                                                  final List<T> rList,
                                                                  final CompletableFuture<List<T>> result) {
         return (value, failure) -> {
-                if (failure == null) {
-                    if (!result.isDone()) {
-                        final boolean commit;
-                        lock.readLock().lock();
-                        try {
-                            commit = rList.size() < n && rList.add(value) && rList.size() == n;
-                        } finally {
-                            lock.readLock().unlock();
-                        }
-                        if (commit) {
+            if (failure == null) {
+                if (!result.isDone()) {
+                    lock.readLock().lock();
+                    try {
+                        rList.add(value);
+                        if (rList.size() == n) {
                             result.complete(Collections.unmodifiableList(rList));
                         }
+                    } finally {
+                        lock.readLock().unlock();
                     }
-                } else {
-                    if (fails.incrementAndGet() > maxFail) result.completeExceptionally(failure);
                 }
-            };
+            } else {
+                if (fails.incrementAndGet() > maxFail) result.completeExceptionally(failure);
+            }
+        };
     }
 }

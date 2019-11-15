@@ -42,7 +42,6 @@ public class ShardedHttpApi extends ShardedHttpApiBase {
      * @param request received request
      * @param session current http session
      */
-    @SuppressWarnings("FutureReturnValueIgnored")
     private void entity(final Request request, final HttpSession session) {
         final String id = request.getParameter("id=");
         if (id == null || id.isEmpty()) {
@@ -142,7 +141,7 @@ public class ShardedHttpApi extends ShardedHttpApiBase {
                 entities(request, session);
                 break;
             default:
-                session.sendError(Response.BAD_REQUEST, "Wrong path");
+                sendResponseAsync(new Response(Response.BAD_REQUEST, "Wrong path".getBytes(UTF_8)), session);
                 break;
         }
     }

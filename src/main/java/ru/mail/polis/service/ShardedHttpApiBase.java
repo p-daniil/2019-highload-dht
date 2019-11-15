@@ -99,28 +99,6 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
         return processNodesResponsesAsync(nodesResponsesFutures, request, rf.ack);
     }
 
-    @SuppressWarnings("FutureReturnValueIgnored")
-    private CompletableFuture<Response> processNodesResponsesAsync(final List<CompletableFuture<Response>> futures,
-                                                                   final Request request,
-                                                                   final int ack) {
-        final CompletableFuture<Response> future = new CompletableFuture<>();
-        ExtendedCompletableFuture.firstN(futures, ack).whenCompleteAsync((responses, fail) -> {
-            if (fail == null) {
-                try {
-                    final Response response = processNodesResponses(responses, request, ack);
-                    future.complete(response);
-                } catch (IllegalArgumentException | IOException e) {
-                    LOG.error("Failed to process nodes responses", e);
-                    future.completeExceptionally(e);
-                }
-            } else {
-                LOG.error("Not enough responses received");
-                future.complete(new Response(Response.GATEWAY_TIMEOUT, "Not enough replicas".getBytes(UTF_8)));
-            }
-        });
-        return future;
-    }
-
     private CompletableFuture<Response> processLocallyAsync(final Action<Response> action) {
         final CompletableFuture<Response> future = new CompletableFuture<>();
         executor.execute(() -> {
@@ -155,6 +133,54 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
         return future;
     }
 
+    @SuppressWarnings("FutureReturnValueIgnored")
+    private CompletableFuture<Response> processNodesResponsesAsync(final List<CompletableFuture<Response>> futures,
+                                                                   final Request request,
+                                                                   final int ack) {
+        final CompletableFuture<Response> future = new CompletableFuture<>();
+        ExtendedCompletableFuture.firstN(futures, ack).whenCompleteAsync((responses, fail) -> {
+            if (fail == null) {
+                try {
+                    final Response response = processNodesResponses(responses, request, ack);
+                    future.complete(response);
+                } catch (IllegalArgumentException | IOException e) {
+                    LOG.error("Failed to process nodes responses", e);
+                    future.completeExceptionally(e);
+                }
+            } else {
+                LOG.error("Not enough nodes responses received");
+                future.complete(new Response(Response.GATEWAY_TIMEOUT, "Not enough replicas".getBytes(UTF_8)));
+            }
+        });
+        return future;
+    }
+
+    private Response processNodesResponses(final List<Response> nodesResponses,
+                                           final Request request,
+                                           final int ack) throws IOException {
+        if (nodesResponses.size() < ack) {
+            LOG.error("Not enough nodes responses received");
+            return new Response(Response.GATEWAY_TIMEOUT, "Not Enough Replicas".getBytes(UTF_8));
+        }
+        switch (request.getMethod()) {
+            case Request.METHOD_GET:
+                final List<Replica> replicas = new ArrayList<>();
+                for (int i = 0; i < ack; i++) {
+                    replicas.add(Replica.fromResponse(nodesResponses.get(i)));
+                }
+                LOG.info("Created response for client on GET request");
+                return Replica.toResponse(Replica.merge(replicas));
+            case Request.METHOD_PUT:
+                LOG.info("Created response for client on PUT request");
+                return new Response(Response.CREATED, Response.EMPTY);
+            case Request.METHOD_DELETE:
+                LOG.info("Created response for client on DELETE request");
+                return new Response(Response.ACCEPTED, Response.EMPTY);
+            default:
+                return new Response(Response.METHOD_NOT_ALLOWED, "Method not allowed".getBytes(UTF_8));
+        }
+    }
+
     private Action<Response> getRequestHandler(final Request request, final ByteBuffer key) {
         switch (request.getMethod()) {
             case Request.METHOD_GET:
@@ -165,32 +191,6 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
                 return () -> delete(key);
             default:
                 return null;
-        }
-    }
-
-    private Response processNodesResponses(final List<Response> nodesResponses,
-                                           final Request request,
-                                           final int ack) throws IOException {
-        if (nodesResponses.size() < ack) {
-            LOG.error("Not enough responses received");
-            return new Response(Response.GATEWAY_TIMEOUT, "Not Enough Replicas".getBytes(UTF_8));
-        }
-        switch (request.getMethod()) {
-            case Request.METHOD_GET:
-                final List<Replica> replicas = new ArrayList<>();
-                for (int i = 0; i < ack; i++) {
-                    replicas.add(Replica.fromResponse(nodesResponses.get(i)));
-                }
-                LOG.info("Send response to client on GET request");
-                return Replica.toResponse(Replica.merge(replicas));
-            case Request.METHOD_PUT:
-                LOG.info("Send response to client on PUT request");
-                return new Response(Response.CREATED, Response.EMPTY);
-            case Request.METHOD_DELETE:
-                LOG.info("Send response to client on DELETE request");
-                return new Response(Response.ACCEPTED, Response.EMPTY);
-            default:
-                return new Response(Response.METHOD_NOT_ALLOWED, "Method not allowed".getBytes(UTF_8));
         }
     }
 
