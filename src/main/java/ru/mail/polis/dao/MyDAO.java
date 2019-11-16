@@ -30,7 +30,7 @@ public class MyDAO implements DAO, InternalDAO, Flushable {
     private static final SSTable.Impl SSTABLE_IMPL = FILE_CHANNEL_READ;
     private static final ByteBuffer MIN_BYTE_BUFFER = ByteBuffer.allocate(0);
     private static final double LOAD_FACTOR = 0.1;
-    private static final double COMPACTION_THRESHOLD = 10;
+    private static final double COMPACTION_THRESHOLD = 3;
 
     private final Path tablesDir;
 
@@ -57,7 +57,7 @@ public class MyDAO implements DAO, InternalDAO, Flushable {
                 compactionLock.lock();
                 try {
                     needCompaction.await();
-                    if (ssTableList.size() > COMPACTION_THRESHOLD) continue;
+                    if (ssTableList.size() < COMPACTION_THRESHOLD) continue;
                     if (!stopCompaction.get()) {
                         compact();
                     }
