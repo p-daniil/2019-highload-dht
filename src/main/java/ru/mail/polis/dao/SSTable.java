@@ -26,6 +26,10 @@ import java.util.regex.Pattern;
 import static ru.mail.polis.dao.SSTable.Impl.FILE_CHANNEL_READ;
 
 public abstract class SSTable implements Table {
+    static final Comparator<Table> TABLE_COMPARATOR = Comparator
+            .comparing(Table::getVersion)
+            .reversed();
+
     static final int MIN_TABLE_VERSION = 0;
     private static final String TABLE_FILE_SUFFIX = ".dat";
     private static final String TABLE_TMP_FILE_SUFFIX = ".tmp";

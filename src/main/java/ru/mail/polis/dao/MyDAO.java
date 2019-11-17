@@ -184,13 +184,11 @@ public class MyDAO implements DAO, InternalDAO, Flushable {
             ssTableDeque.addFirst(flushedTable);
             memTable.flushed();
 
-        if (ssTableDeque.size() > options.getCompactionThreshold()) {
-            if (compactionLock.tryLock()) {
-                try {
-                    needCompaction.signal();
-                } finally {
-                    compactionLock.unlock();
-                }
+        if (ssTableDeque.size() > options.getCompactionThreshold() && compactionLock.tryLock()) {
+            try {
+                needCompaction.signal();
+            } finally {
+                compactionLock.unlock();
             }
         }
     }
@@ -222,7 +220,7 @@ public class MyDAO implements DAO, InternalDAO, Flushable {
         lock.writeLock().lock();
         try {
             // Remove old tables
-            for (int i = 0; i < tablesToCompact.size(); i++) {
+            for (final SSTable ssTable : tablesToCompact) {
                 ssTableDeque.removeLast();
             }
             // Now we can rewrite oldest version of table

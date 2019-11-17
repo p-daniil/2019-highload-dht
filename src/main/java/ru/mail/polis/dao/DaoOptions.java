@@ -31,17 +31,17 @@ public class DaoOptions {
             // private constructor
         }
 
-        public Builder setLoadFactor(double loadFactor) {
+        public Builder setLoadFactor(final double loadFactor) {
             DaoOptions.this.loadFactor = loadFactor;
             return this;
         }
 
-        public Builder setCompactionThreshold(int compactionThreshold) {
+        public Builder setCompactionThreshold(final int compactionThreshold) {
             DaoOptions.this.compactionThreshold = compactionThreshold;
             return this;
         }
 
-        public Builder setSsTableImpl(SSTable.Impl ssTableImpl) {
+        public Builder setSsTableImpl(final SSTable.Impl ssTableImpl) {
             DaoOptions.this.ssTableImpl = ssTableImpl;
             return this;
         }
