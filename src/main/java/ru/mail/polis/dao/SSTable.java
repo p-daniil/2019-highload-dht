@@ -14,17 +14,19 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Deque;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static ru.mail.polis.dao.SSTable.Impl.FILE_CHANNEL_READ;
 
 public abstract class SSTable implements Table {
-    private static final int MIN_TABLE_VERSION = 0;
+    static final int MIN_TABLE_VERSION = 0;
     private static final String TABLE_FILE_SUFFIX = ".dat";
     private static final String TABLE_TMP_FILE_SUFFIX = ".tmp";
     private static final String TABLE_FILE_PREFIX = "table_";
@@ -77,14 +79,14 @@ public abstract class SSTable implements Table {
      *
      * @param tablesDir directory to find SSTable files
      * @param impl type of SSTable implementation
-     * @return list of SSTable abstractions
+     * @return deque of SSTable abstractions
      * @throws IOException if unable to read directory
      */
-    static List<SSTable> findVersions(
+    static Deque<SSTable> findVersions(
             final Path tablesDir,
             final Impl impl) throws IOException {
-        
-        final List<SSTable> ssTables = new CopyOnWriteArrayList<>();
+
+        final List<SSTable> ssTables = new ArrayList<>();
         Files.walkFileTree(tablesDir, EnumSet.noneOf(FileVisitOption.class), 1, new SimpleFileVisitor<>() {
             
             @Override
@@ -105,7 +107,8 @@ public abstract class SSTable implements Table {
             }
             
         });
-        return ssTables;
+        ssTables.sort(Comparator.naturalOrder());
+        return new ConcurrentLinkedDeque<>(ssTables);
     }
 
     /**
@@ -176,7 +179,7 @@ public abstract class SSTable implements Table {
 
         try (FileChannel channel = FileChannel.open(tmpFile,
                 StandardOpenOption.WRITE,
-                StandardOpenOption.CREATE_NEW)) {
+                StandardOpenOption.CREATE)) {
 
             final List<Integer> offsetList = new ArrayList<>();
 
@@ -235,7 +238,9 @@ public abstract class SSTable implements Table {
     public abstract long getSize();
 
     @Override
-    public abstract long getVersion();
+    public long getVersion() {
+        return version;
+    }
 
     protected abstract ByteBuffer parseKey(final int index) throws IOException;
 

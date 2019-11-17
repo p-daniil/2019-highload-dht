@@ -5,11 +5,11 @@ import org.jetbrains.annotations.NotNull;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NavigableMap;
-import java.util.TreeMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -18,7 +18,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class MemoryTablePool implements Table, Closeable {
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
-    private final NavigableMap<Long, Table> pendingFlush;
+    private final Deque<Table> pendingFlushDeque;
     private final BlockingQueue<TableToFlush> flushQueue;
     private final long memFlushThreshold;
     private final AtomicBoolean stop = new AtomicBoolean();
@@ -29,12 +29,12 @@ public class MemoryTablePool implements Table, Closeable {
      * Implementation of memory table pool.
      *
      * @param memFlushThreshold threshold after which occurs flushing in-memory table to disk
-     * @param version version of current table
+     * @param version           version of current table
      */
     MemoryTablePool(final long memFlushThreshold, final long version) {
         this.memFlushThreshold = memFlushThreshold;
         this.current = new MemTable(version);
-        this.pendingFlush = new TreeMap<>();
+        this.pendingFlushDeque = new ArrayDeque<>();
         this.flushQueue = new ArrayBlockingQueue<>(2);
     }
 
@@ -44,8 +44,7 @@ public class MemoryTablePool implements Table, Closeable {
         lock.readLock().lock();
         try {
             iterators.add(current.iterator(from));
-
-            for (final Table table : pendingFlush.values()) {
+            for (final Table table : pendingFlushDeque) {
                 iterators.add(table.iterator(from));
             }
         } finally {
@@ -86,10 +85,10 @@ public class MemoryTablePool implements Table, Closeable {
         return flushQueue.take();
     }
 
-    void flushed(final Table table) {
+    void flushed() {
         lock.writeLock().lock();
         try {
-            pendingFlush.remove(table.getVersion());
+            pendingFlushDeque.removeLast();
         } finally {
             lock.writeLock().unlock();
         }
@@ -103,7 +102,7 @@ public class MemoryTablePool implements Table, Closeable {
             try {
                 if (current.getSize() > memFlushThreshold) {
                     tableToFlush = new TableToFlush(current);
-                    pendingFlush.put(current.getVersion(), current);
+                    pendingFlushDeque.addFirst(current);
                     current = new MemTable(current.getVersion() + 1);
                 }
             } finally {
@@ -126,7 +125,7 @@ public class MemoryTablePool implements Table, Closeable {
         lock.readLock().lock();
         try {
             long size = current.getSize();
-            for (final Table table : pendingFlush.values()) {
+            for (final Table table : pendingFlushDeque) {
                 size += table.getSize();
             }
             return size;
@@ -149,7 +148,7 @@ public class MemoryTablePool implements Table, Closeable {
         lock.writeLock().lock();
         try {
             tableToFlush = new TableToFlush(current, true);
-            pendingFlush.put(tableToFlush.getVersion(), tableToFlush.getTable());
+            pendingFlushDeque.addFirst(current);
         } finally {
             lock.writeLock().unlock();
         }

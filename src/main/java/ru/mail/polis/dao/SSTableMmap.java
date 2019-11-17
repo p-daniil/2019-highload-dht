@@ -25,7 +25,7 @@ public class SSTableMmap extends SSTable {
     public SSTableMmap(final Path file) throws IOException {
         super(file);
         
-        MappedByteBuffer mappped = null;
+        MappedByteBuffer mappped;
 
         try (FileChannel channel = FileChannel.open(file, StandardOpenOption.READ)) {
             mappped = (MappedByteBuffer) channel
@@ -84,11 +84,6 @@ public class SSTableMmap extends SSTable {
         return size;
     }
 
-    @Override
-    public long getVersion() {
-        return version;
-    }
-
     private long receiveOffset(final int index) {
         return offsetArray.get(index);
     }
@@ -129,13 +124,13 @@ public class SSTableMmap extends SSTable {
         final boolean tombstone = valueDuplicate.get() != 0;
 
         if (tombstone) {
-            return Cell.create(key, Value.tombstone(timeStamp), getVersion());
+            return Cell.create(key, Value.tombstone(timeStamp), version);
         } else {
             final long valueSize = valueDuplicate.getLong();
             valueDuplicate.limit((int) (valueDuplicate.position() + valueSize));
             final ByteBuffer value = valueDuplicate.slice();
 
-            return Cell.create(key, Value.of(timeStamp, value), getVersion());
+            return Cell.create(key, Value.of(timeStamp, value), version);
         }
     }
 

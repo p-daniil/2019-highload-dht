@@ -13,37 +13,32 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static ru.mail.polis.dao.SSTable.Impl.FILE_CHANNEL_READ;
-
 public class MyDAO implements DAO, InternalDAO, Flushable {
     private static final Logger LOG = LoggerFactory.getLogger(MyDAO.class);
 
-    private static final SSTable.Impl SSTABLE_IMPL = FILE_CHANNEL_READ;
     private static final ByteBuffer MIN_BYTE_BUFFER = ByteBuffer.allocate(0);
-    private static final double LOAD_FACTOR = 0.1;
-    private static final double COMPACTION_THRESHOLD = 3;
 
     private final Path tablesDir;
 
+    private final DaoOptions options;
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
+    private final FlusherThread flusher;
+    private final MemoryTablePool memTable;
+    private volatile Deque<SSTable> ssTableDeque;
+
     private final ReentrantLock compactionLock = new ReentrantLock();
     private final Condition needCompaction = compactionLock.newCondition();
-    private final Condition finishedCompaction = compactionLock.newCondition();
-    private final FlusherThread flusher;
-    private final CompactionThread compactionThread;
-    private final MemoryTablePool memTable;
-    private volatile List<SSTable> ssTableList;
-    private final AtomicBoolean compactingNow = new AtomicBoolean(false);
     private final AtomicBoolean stopCompaction = new AtomicBoolean(false);
+    private final CompactionThread compactionThread;
 
     private class CompactionThread extends Thread {
 
@@ -57,17 +52,19 @@ public class MyDAO implements DAO, InternalDAO, Flushable {
                 compactionLock.lock();
                 try {
                     needCompaction.await();
-                    if (ssTableList.size() < COMPACTION_THRESHOLD) continue;
-                    if (!stopCompaction.get()) {
-                        compact();
-                    }
                 } catch (InterruptedException e) {
                     LOG.info("Compaction interrupted");
                     Thread.currentThread().interrupt();
-                } catch (IOException e) {
-                    LOG.error("Error while compacting", e);
                 } finally {
                     compactionLock.unlock();
+                }
+                if (ssTableDeque.size() < options.getCompactionThreshold()) continue;
+                if (!stopCompaction.get()) {
+                    try {
+                        compact();
+                    } catch (IOException e) {
+                        LOG.error("Error while compacting", e);
+                    }
                 }
             }
             LOG.info("Compaction thread stopped");
@@ -81,11 +78,12 @@ public class MyDAO implements DAO, InternalDAO, Flushable {
      * @param maxHeap   max memory, allocated for JVM
      * @throws IOException if unable to read existing SSTable files
      */
-    MyDAO(final Path tablesDir, final long maxHeap) throws IOException {
-
-        this.ssTableList = SSTable.findVersions(tablesDir, SSTABLE_IMPL);
-        int version = ssTableList.size();
-        this.memTable = new MemoryTablePool((long) (maxHeap * LOAD_FACTOR), ++version);
+    MyDAO(final Path tablesDir, final long maxHeap, final DaoOptions options) throws IOException {
+        this.ssTableDeque = SSTable.findVersions(tablesDir, options.getSsTableImpl());
+        final SSTable lastAddedSSTable = ssTableDeque.peekFirst();
+        long version = lastAddedSSTable == null ? 0 : lastAddedSSTable.getVersion();
+        this.memTable = new MemoryTablePool((long) (maxHeap * options.getLoadFactor()), ++version);
+        this.options = options;
 
         this.flusher = new FlusherThread(this, memTable);
         this.flusher.start();
@@ -145,7 +143,7 @@ public class MyDAO implements DAO, InternalDAO, Flushable {
 
         lock.readLock().lock();
         try {
-            for (final Table ssTable : ssTableList) {
+            for (final Table ssTable : ssTableDeque) {
                 ssIterators.add(ssTable.iterator(from));
             }
 
@@ -175,53 +173,71 @@ public class MyDAO implements DAO, InternalDAO, Flushable {
                 Runtime.getRuntime().freeMemory());
         final long startTime = System.currentTimeMillis();
 
-        final SSTable flushedTable = SSTable.flush(
-                tablesDir,
-                table.iterator(MIN_BYTE_BUFFER),
-                table.getVersion(),
-                SSTABLE_IMPL);
+            final SSTable flushedTable = SSTable.flush(
+                    tablesDir,
+                    table.iterator(MIN_BYTE_BUFFER),
+                    table.getVersion(),
+                    options.getSsTableImpl());
 
-        LOG.info("Flushed in {} ms", System.currentTimeMillis() - startTime);
+            LOG.info("Flushed in {} ms", System.currentTimeMillis() - startTime);
 
-        ssTableList.add(flushedTable);
-        memTable.flushed(flushedTable);
+            ssTableDeque.addFirst(flushedTable);
+            memTable.flushed();
 
-        if (ssTableList.size() > COMPACTION_THRESHOLD) {
-            compactionLock.lock();
-            try {
-                needCompaction.signal();
-            } finally {
-                compactionLock.unlock();
+        if (ssTableDeque.size() > options.getCompactionThreshold()) {
+            if (compactionLock.tryLock()) {
+                try {
+                    needCompaction.signal();
+                } finally {
+                    compactionLock.unlock();
+                }
             }
         }
     }
 
     @Override
     public void compact() throws IOException {
-        if (!compactingNow.compareAndSet(false, true)) {
-            return;
+        if (compactionLock.tryLock()) {
+            try {
+                compactImpl();
+            } finally {
+                compactionLock.unlock();
+            }
         }
+    }
+
+    private void compactImpl() throws IOException {
         LOG.info("Compaction started...");
         final long startTime = System.currentTimeMillis();
 
-        final List<SSTable> tablesToCompact = new ArrayList<>(ssTableList);
+        final List<SSTable> tablesToCompact = new ArrayList<>(ssTableDeque);
+
+        // Write table with unreachable version to avoid file rewriting while flushing
         final Path compactedFile = SSTable.writeTable(
                 tablesDir,
                 cellIterator(MIN_BYTE_BUFFER, false),
-                -1);
+                SSTable.MIN_TABLE_VERSION - 1);
 
         final Path compactedFileReseted;
         lock.writeLock().lock();
         try {
-            ssTableList.removeAll(tablesToCompact);
+            // Remove old tables
+            for (int i = 0; i < tablesToCompact.size(); i++) {
+                ssTableDeque.removeLast();
+            }
+            // Now we can rewrite oldest version of table
             compactedFileReseted = SSTable.resetTableVersion(compactedFile);
-            ssTableList.add(SSTable.createSSTable(compactedFileReseted, SSTABLE_IMPL));
+            final SSTable compactedSsTable = SSTable.createSSTable(compactedFileReseted, options.getSsTableImpl());
+            // And add compacted table
+            ssTableDeque.addLast(compactedSsTable);
         } finally {
             lock.writeLock().unlock();
         }
 
+        // Delete unused table files
         for (final SSTable t : tablesToCompact) {
             final Path file = t.getFile();
+            // Except file, which we overwrite (now it is compacted table file)
             if (!file.equals(compactedFileReseted)) {
                 if (t instanceof Closeable) {
                     ((Closeable) t).close();
@@ -229,19 +245,10 @@ public class MyDAO implements DAO, InternalDAO, Flushable {
                 Files.delete(file);
             }
         }
-        compactingNow.set(false);
-        if (stopCompaction.get()) {
-            compactionLock.lock();
-            try {
-                finishedCompaction.signal();
-            } finally {
-                compactionLock.unlock();
-            }
-        }
         LOG.info("Compaction finished in {} ms", System.currentTimeMillis() - startTime);
     }
 
-    private void closeSSTables(final List<SSTable> ssTableList) throws IOException {
+    private void closeSSTables(final Deque<SSTable> ssTableList) throws IOException {
         for (final Table t : ssTableList) {
             if (t instanceof Closeable) {
                 ((Closeable) t).close();
@@ -250,7 +257,7 @@ public class MyDAO implements DAO, InternalDAO, Flushable {
     }
 
     private void closeSSTables() throws IOException {
-        closeSSTables(ssTableList);
+        closeSSTables(ssTableDeque);
     }
 
     @Override
@@ -260,14 +267,11 @@ public class MyDAO implements DAO, InternalDAO, Flushable {
         try {
             flusher.join();
             LOG.info("Flusher closed");
+            LOG.info("Waiting for finish of compaction");
+            stopCompaction.set(true);
             compactionLock.lock();
             try {
-                stopCompaction.set(true);
-                while (compactingNow.get()) {
-                    LOG.info("Waiting for finish of compaction");
-                    finishedCompaction.await(1, TimeUnit.MINUTES);
-                }
-                LOG.info("Interrupt compaction");
+                LOG.info("Compaction finished, interrupt it");
                 compactionThread.interrupt();
 
             } finally {

@@ -3,8 +3,6 @@ package ru.mail.polis.dao;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
 import ru.mail.polis.TestBase;
 
@@ -14,13 +12,16 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Concurrency tests for {@link DAO}.
@@ -60,6 +61,11 @@ class ConcurrentTest extends TestBase {
     @Test
     void tenReaderWriterManyRecords(@TempDir File data) throws IOException, InterruptedException {
         concurrentReadWrite(10, 1_000_000, data);
+    }
+
+    @Test
+    void backgroundCompaction(@TempDir File data) throws IOException, InterruptedException {
+        concurrentWritesWithCheckStorage(10, 30, data);
     }
 
     private void concurrentWrites(int threadsCount,
@@ -109,95 +115,6 @@ class ConcurrentTest extends TestBase {
         }
     }
 
-    private static final Logger LOG = LoggerFactory.getLogger(ConcurrentTest.class);
-
-    private void concurrentWritesWithCheck(int threadsCount,
-                                           @NotNull final File data,
-                                           long flushThreshold,
-                                           int compactionThreshold)
-            throws IOException, InterruptedException {
-        final ReentrantLock lock = new ReentrantLock();
-        final Condition checkStorage = lock.newCondition();
-        final List<Integer> ssTablesCountMetrics = new ArrayList<>();
-        final int expectedCompactionsCount = 10;
-        try (final DAO dao = DAOFactory.create(data)) {
-            final ExecutorService storageChecker = Executors.newSingleThreadExecutor();
-            storageChecker.execute(() -> {
-                while (!storageChecker.isTerminated()) {
-                    lock.lock();
-                    try {
-                        checkStorage.await();
-                        ssTablesCountMetrics.add(data.list().length);
-                        LOG.info("Check SSTables count: {}", ssTablesCountMetrics.get(ssTablesCountMetrics.size() - 1));
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    } finally {
-                        lock.unlock();
-                    }
-                }
-            });
-            final ExecutorService executor = new ThreadPoolExecutor(threadsCount, threadsCount,
-                    1, TimeUnit.MINUTES,
-                    new ArrayBlockingQueue<>(1024),
-                    (r, usedExecutor) -> {
-                        try {
-                            // test thread will be blocked and wait
-                            usedExecutor.getQueue().put(r);
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                        }
-                    });
-            final int keyLength = 1024;
-            final int valueLength = 16 * 1024;
-
-            long recordSize = keyLength + valueLength;
-            // records count to achieve flushing
-            final long recordsCount = flushThreshold * compactionThreshold * expectedCompactionsCount / recordSize + 1;
-            final AtomicLong memTableSize = new AtomicLong(0);
-            for (int i = 0; i < recordsCount; i++) {
-                executor.submit(() -> {
-                    final ByteBuffer key = randomBuffer(keyLength);
-                    final ByteBuffer value = randomBuffer(valueLength);
-                    try {
-                        dao.upsert(key, value);
-                        if (memTableSize.addAndGet(recordSize) >= flushThreshold) {
-                            lock.lock();
-                            try {
-                                if (memTableSize.get() >= flushThreshold) {
-                                    checkStorage.signal();
-                                    LOG.info("Flush threshold achieved");
-                                    memTableSize.set(0);
-                                }
-                            } finally {
-                                lock.unlock();
-                            }
-                        }
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                });
-            }
-            executor.shutdown();
-            storageChecker.shutdown();
-            executor.awaitTermination(1, TimeUnit.MINUTES);
-            storageChecker.awaitTermination(1, TimeUnit.MINUTES);
-        }
-        // Last check after closing DAO
-        ssTablesCountMetrics.add(data.list().length);
-        int compactionsCount = 0;
-        for (int i = 1; i < ssTablesCountMetrics.size(); i++) {
-            if (ssTablesCountMetrics.get(i) < ssTablesCountMetrics.get(i - 1)) {
-                compactionsCount++;
-            }
-        }
-        assertEquals(expectedCompactionsCount, compactionsCount);
-    }
-
-//    @Test
-    void backgroundCompaction(@TempDir File data) throws IOException, InterruptedException {
-        concurrentWritesWithCheck(10, data, (long) (DAOFactory.MAX_HEAP * 0.1), 3);
-    }
-
     private void concurrentReadWrite(int threadsCount,
                                      int recordsCount,
                                      @NotNull final File data)
@@ -234,5 +151,75 @@ class ConcurrentTest extends TestBase {
             executor.awaitTermination(1, TimeUnit.MINUTES);
             assertEquals(recordsCount, matches.get());
         }
+    }
+
+    private void concurrentWritesWithCheckStorage(int threadsCount,
+                                                  int maxCompactionsExpected,
+                                                  @NotNull final File data)
+            throws IOException, InterruptedException {
+        final long flushThreshold = (long) (DAOFactory.MAX_HEAP * DAOFactory.OPTIONS.getLoadFactor());
+        final int compactionThreshold = DAOFactory.OPTIONS.getCompactionThreshold();
+        final List<Integer> ssTablesCountSamples = new ArrayList<>();
+        final ScheduledExecutorService storageChecker;
+
+        try (final DAO dao = DAOFactory.create(data)) {
+            storageChecker = Executors.newScheduledThreadPool(1);
+            storageChecker.scheduleAtFixedRate(() -> ssTablesCountSamples.add(data.list().length),
+                    0, 10, TimeUnit.MILLISECONDS);
+
+            final ExecutorService executor = new ThreadPoolExecutor(threadsCount, threadsCount,
+                    1, TimeUnit.MINUTES,
+                    new ArrayBlockingQueue<>(1024),
+                    (r, usedExecutor) -> {
+                        try {
+                            // test thread will be blocked and wait
+                            usedExecutor.getQueue().put(r);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    });
+
+            final int keyLength = 16;
+            final int valueLength = 1024;
+            long recordSize = keyLength + valueLength;
+
+            // Estimated records count to achieve max compactions count
+            // (make one more flush, to exceed compaction threshold)
+            final long recordsCount =
+                    (flushThreshold * compactionThreshold * maxCompactionsExpected + flushThreshold) / recordSize;
+
+            for (int i = 0; i < recordsCount; i++) {
+                executor.submit(() -> {
+                    final ByteBuffer key = randomBuffer(keyLength);
+                    final ByteBuffer value = randomBuffer(valueLength);
+                    try {
+                        dao.upsert(key, value);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                });
+            }
+
+            executor.shutdown();
+            executor.awaitTermination(1, TimeUnit.MINUTES);
+        }
+        // Shutdown storage checker after closing DAO
+        storageChecker.shutdown();
+        // Control sample
+        ssTablesCountSamples.add(data.list().length);
+
+        int filesCountDecreasedTimes = 0;
+        boolean decreasedBefore = false;
+        for (int i = 1; i < ssTablesCountSamples.size(); i++) {
+            if (ssTablesCountSamples.get(i) < ssTablesCountSamples.get(i - 1)) {
+                if (!decreasedBefore) {
+                    filesCountDecreasedTimes++;
+                    decreasedBefore = true;
+                }
+            } else {
+                decreasedBefore = false;
+            }
+        }
+        assertTrue(filesCountDecreasedTimes > 0);
     }
 }

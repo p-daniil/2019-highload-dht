@@ -28,6 +28,10 @@ import org.jetbrains.annotations.NotNull;
  */
 public final class DAOFactory {
     static final long MAX_HEAP = 256 * 1024 * 1024;
+    static final DaoOptions OPTIONS = DaoOptions.builder()
+            .setLoadFactor(0.01)
+            .setCompactionThreshold(5)
+            .build();
 
     private DAOFactory() {
         // Not instantiatable
@@ -53,6 +57,6 @@ public final class DAOFactory {
             throw new IllegalArgumentException("Path is not a directory: " + data);
         }
 
-        return new MyDAO(data.toPath(), MAX_HEAP);
+        return new MyDAO(data.toPath(), MAX_HEAP, OPTIONS);
     }
 }

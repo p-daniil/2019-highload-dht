@@ -63,11 +63,6 @@ public class SSTableFileChannel extends SSTable implements Closeable {
         return size;
     }
 
-    @Override
-    public long getVersion() {
-        return version;
-    }
-
     private int receiveRowCount() throws IOException {
 
         final ByteBuffer rowCountBuffer = ByteBuffer.allocate(Integer.BYTES);
@@ -131,7 +126,7 @@ public class SSTableFileChannel extends SSTable implements Closeable {
         final boolean tombstone = tombstoneBuffer.rewind().get() != 0;
 
         if (tombstone) {
-            return Cell.create(key, Value.tombstone(timeStamp), getVersion());
+            return Cell.create(key, Value.tombstone(timeStamp), version);
         } else {
 
             offset += Byte.BYTES;
@@ -146,7 +141,7 @@ public class SSTableFileChannel extends SSTable implements Closeable {
             channel.read(valueBuffer, offset);
             final ByteBuffer value = valueBuffer.rewind();
 
-            return Cell.create(key, Value.of(timeStamp, value), getVersion());
+            return Cell.create(key, Value.of(timeStamp, value), version);
         }
     }
 
