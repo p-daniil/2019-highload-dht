@@ -220,7 +220,8 @@ public class MyDAO implements DAO, InternalDAO, Flushable {
         lock.writeLock().lock();
         try {
             // Remove old tables
-            for (final SSTable ssTable : tablesToCompact) {
+            final int iterCount = tablesToCompact.size();
+            for (int i = 0; i < iterCount; i++) {
                 ssTableDeque.removeLast();
             }
             // Now we can rewrite oldest version of table
