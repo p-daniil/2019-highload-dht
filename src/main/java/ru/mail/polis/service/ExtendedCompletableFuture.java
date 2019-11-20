@@ -20,11 +20,11 @@ class ExtendedCompletableFuture<T> extends CompletableFuture<T> {
         if (maxFail < 0) throw new IllegalArgumentException();
 
         final AtomicInteger fails = new AtomicInteger(0);
-        final List<T> rList = new ArrayList<>(n);
+        final List<T> resultList = new ArrayList<>(n);
 
         final CompletableFuture<List<T>> result = new CompletableFuture<>();
 
-        final BiConsumer<T, Throwable> c = getResultHandler(n, maxFail, fails, rList, result);
+        final BiConsumer<T, Throwable> c = getResultHandler(n, maxFail, fails, resultList, result);
         for (final CompletableFuture<T> f : list) f.whenCompleteAsync(c);
         return result;
     }
@@ -33,23 +33,23 @@ class ExtendedCompletableFuture<T> extends CompletableFuture<T> {
     private static <T> BiConsumer<T, Throwable> getResultHandler(final int n,
                                                                  final int maxFail,
                                                                  final AtomicInteger fails,
-                                                                 final List<T> rList,
-                                                                 final CompletableFuture<List<T>> result) {
+                                                                 final List<T> resultList,
+                                                                 final CompletableFuture<List<T>> future) {
         return (value, failure) -> {
             if (failure == null) {
-                if (!result.isDone()) {
+                if (!future.isDone()) {
                     lock.readLock().lock();
                     try {
-                        rList.add(value);
-                        if (rList.size() == n) {
-                            result.complete(Collections.unmodifiableList(rList));
+                        resultList.add(value);
+                        if (resultList.size() == n) {
+                            future.complete(Collections.unmodifiableList(resultList));
                         }
                     } finally {
                         lock.readLock().unlock();
                     }
                 }
             } else {
-                if (fails.incrementAndGet() > maxFail) result.completeExceptionally(failure);
+                if (fails.incrementAndGet() > maxFail) future.completeExceptionally(failure);
             }
         };
     }
