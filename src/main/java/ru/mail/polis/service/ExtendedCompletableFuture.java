@@ -18,26 +18,28 @@ class ExtendedCompletableFuture<T> extends CompletableFuture<T> {
 
     static <T> CompletableFuture<List<T>> firstN(final List<CompletableFuture<T>> list, final int n) {
         final int maxFail = list.size() - n;
-        if (maxFail < 0) throw new IllegalArgumentException();
+        if (maxFail < 0) {
+            throw new IllegalArgumentException("n should be less than size of task list");
+        }
 
-        final AtomicInteger fails = new AtomicInteger(0);
+        final CompletionInfo info = new CompletionInfo(n, maxFail);
         final List<T> resultList = new ArrayList<>(n);
         final ReadWriteLock lock = new ReentrantReadWriteLock();
 
         final CompletableFuture<List<T>> result = new CompletableFuture<>();
 
-        final BiConsumer<T, Throwable> c = getResultHandler(n, maxFail, fails, resultList, lock, result);
-        for (final CompletableFuture<T> f : list) f.whenCompleteAsync(c).exceptionally(e -> {
-            LOG.error("Failed to handle result", e);
-            return null;
-        });
+        final BiConsumer<T, Throwable> c = getResultHandler(info, resultList, lock, result);
+        for (final CompletableFuture<T> f : list) {
+            f.whenCompleteAsync(c).exceptionally(e -> {
+                LOG.error("Failed to handle result", e);
+                return null;
+            });
+        }
         return result;
     }
 
     @NotNull
-    private static <T> BiConsumer<T, Throwable> getResultHandler(final int n,
-                                                                 final int maxFail,
-                                                                 final AtomicInteger fails,
+    private static <T> BiConsumer<T, Throwable> getResultHandler(final CompletionInfo info,
                                                                  final List<T> resultList,
                                                                  final ReadWriteLock lock,
                                                                  final CompletableFuture<List<T>> future) {
@@ -47,7 +49,7 @@ class ExtendedCompletableFuture<T> extends CompletableFuture<T> {
                     lock.readLock().lock();
                     try {
                         resultList.add(value);
-                        if (resultList.size() == n) {
+                        if (resultList.size() == info.n) {
                             future.complete(Collections.unmodifiableList(resultList));
                         }
                     } finally {
@@ -55,8 +57,21 @@ class ExtendedCompletableFuture<T> extends CompletableFuture<T> {
                     }
                 }
             } else {
-                if (fails.incrementAndGet() > maxFail) future.completeExceptionally(failure);
+                if (info.fails.incrementAndGet() > info.maxFail) {
+                    future.completeExceptionally(failure);
+                }
             }
         };
+    }
+
+    private static class CompletionInfo {
+        final int n;
+        final int maxFail;
+        final AtomicInteger fails = new AtomicInteger(0);
+
+        CompletionInfo(final int n, final int maxFail) {
+            this.n = n;
+            this.maxFail = maxFail;
+        }
     }
 }
