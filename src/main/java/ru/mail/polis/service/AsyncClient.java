@@ -4,6 +4,8 @@ import one.nio.http.Request;
 import one.nio.http.Response;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -18,6 +20,8 @@ import java.util.function.BiConsumer;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 class AsyncClient {
+    private static final Logger LOG = LoggerFactory.getLogger(AsyncClient.class);
+
     private static final String TIMESTAMP_HEADER = "Timestamp: ";
     private final HttpClient client;
     private final String nodeAddress;
@@ -30,7 +34,6 @@ class AsyncClient {
         this.nodeAddress = nodeAddress;
     }
 
-    @SuppressWarnings("FutureReturnValueIgnored")
     CompletableFuture<Response> proxy(final Request request) {
         final String method = getMethodString(request.getMethod());
         if (method == null) {
@@ -43,10 +46,18 @@ class AsyncClient {
         final CompletableFuture<Response> future = new CompletableFuture<>();
         if (request.getMethod() == Request.METHOD_GET) {
             client.sendAsync(asyncRequest, HttpResponse.BodyHandlers.ofByteArray())
-                    .whenCompleteAsync(getResponseWithBodyHandler(future));
+                    .whenCompleteAsync(getResponseWithBodyHandler(future))
+                    .exceptionally(e -> {
+                        LOG.error("Failed to handle result", e);
+                        return null;
+                    });
         } else {
             client.sendAsync(asyncRequest, HttpResponse.BodyHandlers.discarding())
-                    .whenCompleteAsync(getEmptyBodyResponseHandler(future));
+                    .whenCompleteAsync(getEmptyBodyResponseHandler(future))
+                    .exceptionally(e -> {
+                        LOG.error("Failed to handle result", e);
+                        return null;
+                    });
         }
         return future;
     }
