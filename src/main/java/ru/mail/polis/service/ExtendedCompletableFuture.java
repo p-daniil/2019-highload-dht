@@ -16,21 +16,21 @@ import java.util.function.BiConsumer;
 class ExtendedCompletableFuture<T> extends CompletableFuture<T> {
     private static final Logger LOG = LoggerFactory.getLogger(ExtendedCompletableFuture.class);
 
-    static <T> CompletableFuture<List<T>> firstN(final List<CompletableFuture<T>> list, final int n) {
-        final int maxFail = list.size() - n;
+    static <T> CompletableFuture<List<T>> firstN(final List<CompletableFuture<T>> list, final int succeededCount) {
+        final int maxFail = list.size() - succeededCount;
         if (maxFail < 0) {
-            throw new IllegalArgumentException("n should be less than size of task list");
+            throw new IllegalArgumentException("succeeded count parameter should be less than size of task list");
         }
 
-        final CompletionInfo info = new CompletionInfo(n, maxFail);
-        final List<T> resultList = new ArrayList<>(n);
+        final CompletionInfo info = new CompletionInfo(succeededCount, maxFail);
+        final List<T> resultList = new ArrayList<>(succeededCount);
         final ReadWriteLock lock = new ReentrantReadWriteLock();
 
         final CompletableFuture<List<T>> result = new CompletableFuture<>();
 
-        final BiConsumer<T, Throwable> c = getResultHandler(info, resultList, lock, result);
-        for (final CompletableFuture<T> f : list) {
-            f.whenCompleteAsync(c).exceptionally(e -> {
+        final BiConsumer<T, Throwable> resultHandler = getResultHandler(info, resultList, lock, result);
+        for (final CompletableFuture<T> future : list) {
+            future.whenCompleteAsync(resultHandler).exceptionally(e -> {
                 LOG.error("Failed to handle result", e);
                 return null;
             });
@@ -49,7 +49,7 @@ class ExtendedCompletableFuture<T> extends CompletableFuture<T> {
                     lock.readLock().lock();
                     try {
                         resultList.add(value);
-                        if (resultList.size() == info.n) {
+                        if (resultList.size() == info.succeededCount) {
                             future.complete(Collections.unmodifiableList(resultList));
                         }
                     } finally {
@@ -65,12 +65,12 @@ class ExtendedCompletableFuture<T> extends CompletableFuture<T> {
     }
 
     private static class CompletionInfo {
-        final int n;
+        final int succeededCount;
         final int maxFail;
         final AtomicInteger fails = new AtomicInteger(0);
 
-        CompletionInfo(final int n, final int maxFail) {
-            this.n = n;
+        CompletionInfo(final int succeededCount, final int maxFail) {
+            this.succeededCount = succeededCount;
             this.maxFail = maxFail;
         }
     }
