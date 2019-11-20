@@ -266,8 +266,8 @@ public class MyDAO implements DAO, InternalDAO, Flushable {
         try {
             flusher.join();
             LOG.info("Flusher closed");
-            LOG.info("Waiting for finish of compaction");
             stopCompaction.set(true);
+            LOG.info("Waiting for finish of compaction");
             compactionLock.lock();
             try {
                 LOG.info("Compaction finished, interrupt it");
