@@ -54,41 +54,47 @@ class AsyncClient {
         final HttpRequest asyncRequest = requestBase(request, address)
                 .GET()
                 .build();
-        final CompletableFuture<Response> future = new CompletableFuture<>();
-        client.sendAsync(asyncRequest, HttpResponse.BodyHandlers.ofByteArray())
-                .whenCompleteAsync(getResponseWithBodyHandler(future))
-                .exceptionally(e -> {
-                    LOG.error("Failed to handle result", e);
-                    return null;
-                });
-        return future;
+        return sendAsync(asyncRequest, request.getMethod());
     }
 
     private CompletableFuture<Response> put(final Request request, final String address) {
         final HttpRequest asyncRequest = requestBase(request, address)
                 .PUT(HttpRequest.BodyPublishers.ofByteArray(request.getBody()))
                 .build();
-        final CompletableFuture<Response> future = new CompletableFuture<>();
-        client.sendAsync(asyncRequest, HttpResponse.BodyHandlers.discarding())
-                .whenCompleteAsync(getEmptyBodyResponseHandler(future))
-                .exceptionally(e -> {
-                    LOG.error("Failed to handle result", e);
-                    return null;
-                });
-        return future;
+        return sendAsync(asyncRequest, request.getMethod());
     }
 
     private CompletableFuture<Response> delete(final Request request, final String address) {
         final HttpRequest asyncRequest = requestBase(request, address)
                 .DELETE()
                 .build();
+        return sendAsync(asyncRequest, request.getMethod());
+    }
+
+    private CompletableFuture<Response> sendAsync(final HttpRequest asyncRequest, final int method) {
         final CompletableFuture<Response> future = new CompletableFuture<>();
-        client.sendAsync(asyncRequest, HttpResponse.BodyHandlers.discarding())
-                .whenCompleteAsync(getEmptyBodyResponseHandler(future))
-                .exceptionally(e -> {
-                    LOG.error("Failed to handle result", e);
-                    return null;
-                });
+        switch (method) {
+            case Request.METHOD_GET:
+                client.sendAsync(asyncRequest, HttpResponse.BodyHandlers.ofByteArray())
+                        .whenCompleteAsync(getResponseWithBodyHandler(future))
+                        .exceptionally(e -> {
+                            LOG.error("Failed to handle result", e);
+                            return null;
+                        });
+                break;
+            case Request.METHOD_PUT:
+            case Request.METHOD_DELETE:
+                client.sendAsync(asyncRequest, HttpResponse.BodyHandlers.discarding())
+                        .whenCompleteAsync(getEmptyBodyResponseHandler(future))
+                        .exceptionally(e -> {
+                            LOG.error("Failed to handle result", e);
+                            return null;
+                        });
+                break;
+            default:
+                return CompletableFuture.completedFuture(new Response(Response.METHOD_NOT_ALLOWED,
+                        "Method not allowed".getBytes(UTF_8)));
+        }
         return future;
     }
 
