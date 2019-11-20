@@ -114,7 +114,6 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
         return future;
     }
 
-    @SuppressWarnings("FutureReturnValueIgnored")
     private CompletableFuture<Response> pollNodeAsync(final Request request,
                                                       final String node) {
         final CompletableFuture<Response> future = new CompletableFuture<>();
@@ -129,11 +128,13 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
                 LOG.error("Failed to receive response from node: {}", node);
                 future.completeExceptionally(fail);
             }
+        }).exceptionally(e -> {
+            LOG.error("Failed to handle result", e);
+            return null;
         });
         return future;
     }
 
-    @SuppressWarnings("FutureReturnValueIgnored")
     private CompletableFuture<Response> processNodesResponsesAsync(final List<CompletableFuture<Response>> futures,
                                                                    final Request request,
                                                                    final int ack) {
@@ -151,6 +152,9 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
                 LOG.error("Not enough nodes responses received");
                 future.complete(new Response(Response.GATEWAY_TIMEOUT, "Not enough replicas".getBytes(UTF_8)));
             }
+        }).exceptionally(e -> {
+            LOG.error("Failed to handle result", e);
+            return null;
         });
         return future;
     }
