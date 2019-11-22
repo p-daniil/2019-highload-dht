@@ -1,9 +1,9 @@
 package ru.mail.polis.service;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.function.BiConsumer;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -22,44 +23,86 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 class AsyncClient {
     private static final Logger LOG = LoggerFactory.getLogger(AsyncClient.class);
 
-    private static final String TIMESTAMP_HEADER = "Timestamp: ";
+    private static final String TIMESTAMP_HEADER = "Timestamp";
+    private static final String PROXY_HEADER = "Node-polling";
     private final HttpClient client;
-    private final String nodeAddress;
 
-    AsyncClient(final String nodeAddress, final Executor executor) {
+    AsyncClient() {
+        final Executor clientExecutor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(),
+                new ThreadFactoryBuilder().setNameFormat("client-%d").build());
         this.client = HttpClient.newBuilder()
-                .executor(executor)
-                .connectTimeout(Duration.of(100, ChronoUnit.MILLIS))
+                .connectTimeout(Duration.of(500, ChronoUnit.MILLIS))
+                .executor(clientExecutor)
                 .build();
-        this.nodeAddress = nodeAddress;
     }
 
-    CompletableFuture<Response> proxy(final Request request) {
-        final String method = getMethodString(request.getMethod());
-        if (method == null) {
-            return CompletableFuture.completedFuture(new Response(Response.METHOD_NOT_ALLOWED,
-                    "Method not allowed".getBytes(UTF_8)));
+    CompletableFuture<Response> proxy(final Request request, final String address) {
+        switch (request.getMethod()) {
+            case Request.METHOD_GET:
+                return get(request, address);
+            case Request.METHOD_PUT:
+                return put(request, address);
+            case Request.METHOD_DELETE:
+                return delete(request, address);
+            default:
+                return CompletableFuture.completedFuture(new Response(Response.METHOD_NOT_ALLOWED,
+                        "Method not allowed".getBytes(UTF_8)));
         }
+    }
 
-        final HttpRequest asyncRequest = createRequest(request, method);
+    private CompletableFuture<Response> get(final Request request, final String address) {
+        final HttpRequest asyncRequest = requestBase(request, address)
+                .GET()
+                .build();
+        return sendAsync(asyncRequest, request.getMethod());
+    }
 
+    private CompletableFuture<Response> put(final Request request, final String address) {
+        final HttpRequest asyncRequest = requestBase(request, address)
+                .PUT(HttpRequest.BodyPublishers.ofByteArray(request.getBody()))
+                .build();
+        return sendAsync(asyncRequest, request.getMethod());
+    }
+
+    private CompletableFuture<Response> delete(final Request request, final String address) {
+        final HttpRequest asyncRequest = requestBase(request, address)
+                .DELETE()
+                .build();
+        return sendAsync(asyncRequest, request.getMethod());
+    }
+
+    private CompletableFuture<Response> sendAsync(final HttpRequest asyncRequest, final int method) {
         final CompletableFuture<Response> future = new CompletableFuture<>();
-        if (request.getMethod() == Request.METHOD_GET) {
-            client.sendAsync(asyncRequest, HttpResponse.BodyHandlers.ofByteArray())
-                    .whenCompleteAsync(getResponseWithBodyHandler(future))
-                    .exceptionally(e -> {
-                        LOG.error("Failed to handle result", e);
-                        return null;
-                    });
-        } else {
-            client.sendAsync(asyncRequest, HttpResponse.BodyHandlers.discarding())
-                    .whenCompleteAsync(getEmptyBodyResponseHandler(future))
-                    .exceptionally(e -> {
-                        LOG.error("Failed to handle result", e);
-                        return null;
-                    });
+        switch (method) {
+            case Request.METHOD_GET:
+                client.sendAsync(asyncRequest, HttpResponse.BodyHandlers.ofByteArray())
+                        .whenCompleteAsync(getResponseWithBodyHandler(future))
+                        .exceptionally(e -> {
+                            LOG.error("Failed to handle result", e);
+                            return null;
+                        });
+                break;
+            case Request.METHOD_PUT:
+            case Request.METHOD_DELETE:
+                client.sendAsync(asyncRequest, HttpResponse.BodyHandlers.discarding())
+                        .whenCompleteAsync(getEmptyBodyResponseHandler(future))
+                        .exceptionally(e -> {
+                            LOG.error("Failed to handle result", e);
+                            return null;
+                        });
+                break;
+            default:
+                return CompletableFuture.completedFuture(new Response(Response.METHOD_NOT_ALLOWED,
+                        "Method not allowed".getBytes(UTF_8)));
         }
         return future;
+    }
+
+    private HttpRequest.Builder requestBase(final Request request, final String address) {
+        return HttpRequest.newBuilder()
+                .header(PROXY_HEADER, "true")
+                .uri(URI.create(address + request.getURI()))
+                .timeout(Duration.of(500, ChronoUnit.MILLIS));
     }
 
     @NotNull
@@ -82,43 +125,13 @@ class AsyncClient {
                 final Response response = new Response(
                         String.valueOf(httpResponse.statusCode()),
                         httpResponse.body());
-
-                final String timestamp = httpResponse.headers()
-                        .firstValue("Timestamp")
-                        .orElse("");
-                if (!timestamp.isEmpty()) {
-                    response.addHeader(TIMESTAMP_HEADER + timestamp);
-                }
-
+                httpResponse.headers()
+                        .firstValue(TIMESTAMP_HEADER)
+                        .ifPresent(timestamp -> response.addHeader(TIMESTAMP_HEADER + ": " + timestamp));
                 future.complete(response);
             } else {
                 future.completeExceptionally(throwable);
             }
         };
-    }
-
-    private HttpRequest createRequest(final Request request, final String method) {
-        return HttpRequest.newBuilder()
-                .header("Node-polling", "true")
-                .uri(URI.create(nodeAddress + request.getURI()))
-                .method(method, "PUT".equals(method)
-                        ? HttpRequest.BodyPublishers.ofByteArray(request.getBody()) :
-                        HttpRequest.BodyPublishers.noBody())
-                .timeout(Duration.of(500, ChronoUnit.MILLIS))
-                .build();
-    }
-
-    @Nullable
-    private static String getMethodString(final int method) {
-        switch (method) {
-            case Request.METHOD_GET:
-                return "GET";
-            case Request.METHOD_PUT:
-                return "PUT";
-            case Request.METHOD_DELETE:
-                return "DELETE";
-            default:
-                return null;
-        }
     }
 }

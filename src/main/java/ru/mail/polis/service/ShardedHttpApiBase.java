@@ -9,9 +9,7 @@ import ru.mail.polis.dao.InternalDAO;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -23,7 +21,7 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
 
     private final Executor executor;
     private final Topology<String> topology;
-    private final Map<String, AsyncClient> clientPool;
+    private final AsyncClient client;
 
     ShardedHttpApiBase(final int port,
                        final InternalDAO dao,
@@ -32,14 +30,7 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
         super(port, dao);
         this.executor = executor;
         this.topology = topology;
-        this.clientPool = new HashMap<>();
-        for (final String node : topology.all()) {
-            if (topology.isMe(node)) {
-                continue;
-            }
-            assert !clientPool.containsKey(node);
-            this.clientPool.put(node, new AsyncClient(node, executor));
-        }
+        this.client = new AsyncClient();
     }
 
     RF getRf(final Request request) throws IllegalArgumentException {
@@ -198,7 +189,7 @@ abstract class ShardedHttpApiBase extends HttpApiBase {
         }
     }
 
-    private CompletableFuture<Response> proxy(final Request request, final String node) {
-        return clientPool.get(node).proxy(request);
+    private CompletableFuture<Response> proxy(final Request request, final String nodeAddress) {
+        return client.proxy(request, nodeAddress);
     }
 }
